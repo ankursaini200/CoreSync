@@ -1,0 +1,6 @@
+# CoreSync Development & Testing Dependencies
+-r requirements.txt
+
+pytest>=8.0.0
+pytest-qt>=4.4.0
+

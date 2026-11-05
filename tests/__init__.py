@@ -1,0 +1,2 @@
+"""CoreSync automated test suite."""
+

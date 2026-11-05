@@ -1,0 +1,11 @@
+# CoreSync Runtime Dependencies
+# Python 3.14+ on Arch Linux / Linux x86_64
+
+# Core GUI & Concurrency
+PySide6>=6.8.0
+psutil>=6.1.0
+
+# Scientific & Numerical Compute
+numpy>=2.1.0
+matplotlib>=3.9.0
+
