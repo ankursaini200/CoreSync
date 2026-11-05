@@ -4,6 +4,52 @@ All notable changes to the CoreSync project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.1] - Phase 5.1: IPC and Data Transfer Measurement Audit
+
+### Added
+- **Non-Overlapping Granular Timing Architecture (`ParallelTimingBreakdown`)**:
+  - Phase 1: Process Startup Overhead ($T_{spawn}$): Dedicated timing of child process creation.
+  - Phase 2: Input Slicing & IPC Dispatch ($T_{dispatch}$): Dedicated timing of dataset partitioning, task packaging, and serializing/putting tasks onto `multiprocessing.Queue`.
+  - Phase 3: Parallel Execution & Result Gathering Window ($T_{collection}$): Wall-clock polling duration for worker completion.
+  - Phase 4: Output Reassembly & Reduction Merge ($T_{merge}$): Array concatenation and scalar summation timing.
+  - Verification that the sequential master phases strictly sum to total wall-clock time ($T_{total} \approx T_{spawn} + T_{dispatch} + T_{collection} + T_{merge}$) without double-counting.
+- **Granular Worker & IPC Latency Metrics**:
+  - `WorkerTask.dispatch_timestamp` and `WorkerResult.input_ipc_latency_s`: Measured IPC queue transit latency per chunk via shared `CLOCK_MONOTONIC`.
+  - `max_worker_compute_s`: Critical-path computation duration across parallel worker pool.
+  - `sum_worker_compute_s`: Cumulative CPU execution work across all child processes.
+  - `ipc_overhead_s`: Total measured IPC distribution and collection overhead beyond compute.
+- **UI & Telemetry Updates**:
+  - Updated `gui/data_parallelism.py` to display the 6 non-overlapping timing components.
+  - Added measured IPC latency per chunk in the worker process telemetry table.
+- **Automated Tests**:
+  - Added 3 new timing breakdown tests (`test_timing_breakdown_metrics_present_and_positive`, `test_timing_intervals_non_overlapping_and_consistent`, `test_worker_result_ipc_and_timestamps`).
+  - Total test suite now stands at **66 passing tests** (100% pass rate).
+
+## [0.5.0] - Phase 5: Actual Data Parallelism Engine: Partitioning, Multiprocessing, Scatter/Gather & Verification
+
+### Added
+- **Data Parallelism Engine (`engine/data_parallel/`)**:
+  - `DataPartitioner`: Disjoint contiguous chunk partitioning supporting equal-sized chunks, uneven divisions with fair remainder distribution, zero-copy numpy slice views, and empty dataset edge cases.
+  - `operations.py`: Five genuine CPU-bound computational kernels:
+    1. Element-wise Transcendental Transformations (multi-pass trigonometric, exponential, square root, hyperbolic tangent).
+    2. 8th-Order Horner Polynomial Evaluation (power expansion and series evaluation).
+    3. Matrix Row Norms & Dot Products (Euclidean L2 vector norms and nonlinear cross terms across multi-dimensional matrix rows).
+    4. Prime Number Sieve & Integer Factoring (trial division with 6k ± 1 optimization across integer intervals).
+    5. Non-Linear Sum of Squares Reduction (parallel numerical aggregation).
+  - `worker.py`: Isolated worker loop executing under POSIX `spawn` method with zero PySide6/Qt dependencies.
+  - `result_collector.py`: Reassembles and concatenates array outputs in chunk order and reduces scalar outputs with timing measurements.
+  - `verification.py`: Mathematical verification comparing parallel execution outputs directly against sequential baselines with configurable tolerances (`rtol`, `atol`), discrepancy counts, and maximum error metrics.
+  - `executor.py`: `DataParallelExecutor` orchestrating sequential baseline runs, dynamic worker allocation heuristics, parallel spawn-based dispatch, cooperative cancellation, and 3-stage worker cleanup (cooperative -> SIGTERM -> SIGKILL).
+- **Interactive GUI Integration (`gui/data_parallelism.py`)**:
+  - `DataParallelRunnerThread`: Background `QThread` running compute workloads without blocking the GUI event loop.
+  - Configuration card with kernel dropdown, dataset size spinner, automatic/manual worker allocation mode, random seed, and optional CPU cache warm-up.
+  - Metrics grid displaying Speedup ($S = T_{seq} / T_{par}$), Parallel Efficiency ($E\%$), Sequential Time, Parallel Time, and Throughput.
+  - Verification & Timing Breakdown card displaying verification status badge (`VERIFIED (100% matched)` / `FAILED`), discrepancy count, max diff, and overhead decomposition ($T_{spawn}, T_{compute}, T_{merge}$).
+  - Worker process table displaying per-chunk status, assigned worker, OS PID, index range, item count, and compute duration.
+- **Automated Test Suite Expansion (`tests/test_data_parallel.py`)**:
+  - 19 new tests covering even/uneven partitioning, empty datasets, all 5 computational kernels, verification tolerances, automatic worker selection, single-worker and multi-worker execution, prime count reduction, cooperative cancellation with zero orphans, worker Qt isolation, and GUI mode switching.
+  - Full test suite now passes with **63 passing tests** (100% pass rate).
+
 ## [0.4.0] - Phase 4 Expansion: Real System + Virtual Lab + Cross-Platform Hardware Architecture
 
 ### Added

@@ -14,12 +14,8 @@ LOGS_DIR = Path(__file__).resolve().parent / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", str(LOGS_DIR / ".mplconfig"))
 
-from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication
-
 from utils.config import APP_NAME
 from utils.logging_config import setup_logging
-from gui.main_window import MainWindow
 
 
 def parse_args():
@@ -36,17 +32,32 @@ def main() -> int:
     # 1. Enforce multiprocessing spawn context
     mp.set_start_method("spawn", force=True)
 
-    # 2. Setup Logging
+    # 2. Handle Linux Wayland/X11 environment gracefully before Qt initializes
+    wayland_socket_valid = False
+    if "WAYLAND_DISPLAY" in os.environ:
+        xdg_runtime = os.environ.get("XDG_RUNTIME_DIR", "")
+        if xdg_runtime and (Path(xdg_runtime) / os.environ["WAYLAND_DISPLAY"]).exists():
+            wayland_socket_valid = True
+
+    display_valid = bool(os.environ.get("DISPLAY"))
+
+    if not wayland_socket_valid and not display_valid:
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        os.environ["QT_QPA_PLATFORMTHEME"] = ""
+        os.environ.pop("WAYLAND_DISPLAY", None)
+        os.environ.pop("DISPLAY", None)
+
+    # 3. Import Qt only after environment variables are configured
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
+    from gui.main_window import MainWindow
+
+    # 4. Setup Logging
     logger = setup_logging()
     logger.info("Initializing CoreSync Desktop Workstation...")
 
-    # 3. Parse command-line flags
+    # 5. Parse command-line flags
     args = parse_args()
-
-    # 4. Handle Linux Wayland/X11 environment gracefully
-    if "QT_QPA_PLATFORM" not in os.environ and "WAYLAND_DISPLAY" not in os.environ and "DISPLAY" not in os.environ:
-        os.environ["QT_QPA_PLATFORM"] = "offscreen"
-        logger.info("Headless environment detected; using offscreen Qt platform plugin.")
 
     # 5. Initialize QApplication
     app = QApplication.instance() or QApplication(sys.argv)

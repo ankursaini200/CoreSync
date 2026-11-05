@@ -274,6 +274,8 @@ class MainWindow(QMainWindow):
             self.page_real_stress.shutdown()
         if hasattr(self, "page_vscheduler"):
             self.page_vscheduler.shutdown()
+        if hasattr(self, "page_data"):
+            self.page_data.shutdown()
         if getattr(self, "cpu_monitor", None) is not None and self.cpu_monitor.is_running():
             self.cpu_monitor.stop(timeout_ms=1000)
 

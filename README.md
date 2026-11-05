@@ -58,6 +58,7 @@ CoreSync/
 │   └── components/              # Reusable UI widgets (cards, badges, header)
 │
 ├── engine/                      # Computation & Concurrency Layer
+│   ├── data_parallel/           # Actual Data Parallelism engine (partitioner, workers, collector, verification)
 │   ├── real_system/             # Genuine multi-process CPU stress generator
 │   ├── virtual_lab/             # Software virtual CPU, cores, tasks, & scheduler
 │   ├── worker.py                # Pure Python worker entrypoint (ZERO Qt imports)
@@ -137,7 +138,7 @@ CoreSync/
 - [x] **Phase 2**: Environment Setup, Project Skeleton, and Initial Entry Point.
 - [x] **Phase 3**: Dark Workstation GUI Shell & Sidebar Navigation.
 - [x] **Phase 4**: Hardware Detection, Live Core Monitoring & Dual-Environment Expansion (Real System + Virtual Lab).
-- [ ] **Phase 5**: Data Parallelism Engine & Verification.
+- [x] **Phase 5**: Data Parallelism Engine & Verification.
 - [ ] **Phase 6**: Task Parallelism Engine & DAG Scheduling.
 - [ ] **Phase 7**: Process Lifecycle Management & CPU Affinity Binding.
 - [ ] **Phase 8**: Educational Scheduling Simulation (FCFS, Priority, Round Robin).
