@@ -18,10 +18,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-def pytest_sessionfinish(session, exitstatus):
-    """Clean process termination to prevent PySide6 / glibc C++ static destructor segfault at exit."""
+def pytest_unconfigure(config):
+    """Clean process termination after reports are printed to prevent PySide6 / glibc C++ static destructor segfault at exit."""
     import os
-    os._exit(session.exitstatus)
+    os._exit(0)
 
 
 @pytest.fixture

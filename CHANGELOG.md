@@ -4,6 +4,43 @@ All notable changes to the CoreSync project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] - Phase 4 Expansion: Real System + Virtual Lab + Cross-Platform Hardware Architecture
+
+### Added
+- **Cross-Platform Hardware Provider Abstraction Layer (`utils/hardware/`)**:
+  - `BaseHardwareProvider` defining unified detection interface and data models (`HardwareInfo`, `RAMInfo`, `ProcessInfo`).
+  - `LinuxHardwareProvider`: Linux implementation using sysfs topology, Intel PMU hybrid core detection, `/proc/cpuinfo`, and `psutil`.
+  - `WindowsHardwareProvider`: Windows provider utilizing `platform` and native `psutil` CPU/memory APIs with graceful fallbacks.
+  - `DarwinHardwareProvider`: macOS provider utilizing `sysctl` and `psutil` with Apple Silicon M-series Performance / Efficiency core detection.
+  - `get_hardware_provider()` factory dynamically resolving platform at runtime.
+  - Real RAM usage detection (`total_gb`, `used_gb`, `percent_used`).
+  - Top OS process inspection with CPU%, memory RSS, and active CoreSync child worker identification.
+- **Real CPU Stress Generator (`engine/real_system/cpu_stress.py`)**:
+  - `RealCPUStressGenerator`: Spawns genuine CPU-bound worker processes under POSIX `spawn` method.
+  - Worker loop isolated in non-GUI module with mathematical calculations (pure CPU load, zero Qt imports).
+  - Explicit user initiation only (never automatic).
+  - Conservative safety duration limit hard-capped at 30 seconds.
+  - Duty-cycle throttling (10% to 100%) for proportional core heating and load scaling.
+  - Three-stage process termination guarantee (Cooperative `Event` -> `SIGTERM` -> `SIGKILL`), ensuring zero orphan/zombie processes.
+- **Virtual Multicore Lab Simulation Engine (`engine/virtual_lab/`)**:
+  - `VirtualCPU` and `VirtualCPUConfig`: Simulated multicore processor supporting arbitrary topologies (1 to 128 virtual cores, 1 to 256 threads).
+  - Heterogeneous hybrid architecture simulation: Configurable P-Core and E-Core ratios with asymmetric speed multipliers (e.g. 1.5x P-Cores, 0.8x E-Cores).
+  - `VirtualCore`: Simulated core execution unit with discrete tick progression, task assignment, and simulated windowed duty cycle.
+  - `VirtualTask` and `VirtualWorkloadGenerator`: Synthetic task models with priority levels, burst requirements, and reproducible task batch generation.
+  - `VirtualScheduler`: Educational scheduling policies including FCFS, Priority Scheduling, and Round Robin (with time-quantum preemption), tracking waiting ticks, turnaround ticks, and core dispatching.
+  - Pure software simulation: Virtual metrics are strictly decoupled from real host hardware and `psutil` metrics.
+- **Expanded Modern Dark Workstation GUI (`gui/`)**:
+  - `gui/real_system/process_view.py`: `RealProcessPage` inspecting live OS processes, top CPU consumers, and CoreSync workers.
+  - `gui/real_system/stress_view.py`: `RealStressPage` with worker slider, duration spinner, duty-cycle slider, Start/Stop buttons, and live progress bars.
+  - `gui/virtual_lab/config_view.py`: `VirtualConfigPage` providing hardware presets, core count spinners, hybrid toggles, and live topology summary.
+  - `gui/virtual_lab/monitor_view.py`: `VirtualMonitorPage` featuring an interactive multicore matrix grid displaying per-virtual-core load, speed pills, and current tasks.
+  - `gui/virtual_lab/scheduler_view.py`: `VirtualSchedulerPage` with algorithm selector, Round Robin quantum adjustment, workload injector, simulation step/run buttons, and live ready/completed queues.
+  - `gui/dashboard.py`: Updated with host RAM usage card and 6 direct module launcher action cards.
+  - `gui/main_window.py`: Reorganized 11-page routing with categorized sidebar (Overview, Real System, Virtual Lab, Parallel Processing, Analytics & Config).
+- **Automated Test Suite Expansion (`tests/`)**:
+  - 17 new tests: `test_hardware_providers.py`, `test_virtual_lab.py`, and `test_real_stress.py`.
+  - Full suite now contains **44 passing tests** (100% pass rate).
+
 ## [0.3.0] - Phase 4: CPU Hardware Detection, Sysfs Topology & Live Core Monitoring
 
 ### Added

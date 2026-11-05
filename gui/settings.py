@@ -63,11 +63,60 @@ class SettingsPage(QWidget):
         hardware_card = self._create_hardware_card()
         layout.addWidget(hardware_card)
 
-        # 4. Environment & Logging Info Card
+        # 4. Virtual Lab & Simulation Parameters Card
+        vlab_card = self._create_vlab_settings_card()
+        layout.addWidget(vlab_card)
+
+        # 5. Environment & Logging Info Card
         env_card = self._create_env_card()
         layout.addWidget(env_card)
 
         layout.addStretch(1)
+
+    def _create_vlab_settings_card(self) -> QFrame:
+        card = QFrame()
+        card.setProperty("class", "card")
+        layout = QVBoxLayout(card)
+        layout.setSpacing(14)
+
+        title = QLabel("Virtual Lab Simulation & Stress Safety Parameters")
+        title.setProperty("class", "heading-2")
+        layout.addWidget(title)
+
+        grid = QGridLayout()
+        grid.setSpacing(14)
+
+        # Default Tick Delta
+        grid.addWidget(QLabel("Default Simulation Step Delta:"), 0, 0)
+        self.spin_tick_delta = QSpinBox()
+        self.spin_tick_delta.setRange(1, 50)
+        self.spin_tick_delta.setValue(1)
+        grid.addWidget(self.spin_tick_delta, 0, 1)
+
+        # Simulation Clock Interval
+        grid.addWidget(QLabel("Continuous Run Timer (ms):"), 0, 2)
+        self.spin_sim_timer = QSpinBox()
+        self.spin_sim_timer.setRange(20, 500)
+        self.spin_sim_timer.setValue(60)
+        grid.addWidget(self.spin_sim_timer, 0, 3)
+
+        # Real Stress Safety Hard Cap
+        grid.addWidget(QLabel("Real CPU Stress Hard Cap (s):"), 1, 0)
+        self.spin_stress_cap = QSpinBox()
+        self.spin_stress_cap.setRange(5, 30)
+        self.spin_stress_cap.setValue(30)
+        self.spin_stress_cap.setEnabled(False)
+        grid.addWidget(self.spin_stress_cap, 1, 1)
+
+        # Duty Cycle Slice
+        grid.addWidget(QLabel("Stress Duty-Cycle Window (ms):"), 1, 2)
+        self.spin_duty_ms = QSpinBox()
+        self.spin_duty_ms.setRange(10, 200)
+        self.spin_duty_ms.setValue(50)
+        grid.addWidget(self.spin_duty_ms, 1, 3)
+
+        layout.addLayout(grid)
+        return card
 
     def _create_header_card(self) -> QFrame:
         card = QFrame()

@@ -1,7 +1,7 @@
 """Main application window for CoreSync."""
 
 import sys
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
@@ -24,12 +24,19 @@ from monitoring.cpu_monitor import CPUMetricsSnapshot, CPUMonitorService
 from gui.styles import DARK_STYLESHEET
 from gui.components.header_bar import HeaderBar
 from gui.dashboard import DashboardPage
+from gui.core_monitor import CoreMonitorPage
+from gui.real_system.process_view import RealProcessPage
+from gui.real_system.stress_view import RealStressPage
+from gui.virtual_lab.config_view import VirtualConfigPage
+from gui.virtual_lab.monitor_view import VirtualMonitorPage
+from gui.virtual_lab.scheduler_view import VirtualSchedulerPage
 from gui.data_parallelism import DataParallelismPage
 from gui.task_parallelism import TaskParallelismPage
-from gui.core_monitor import CoreMonitorPage
-from gui.scheduler_view import SchedulerViewPage
 from gui.performance import PerformancePage
 from gui.settings import SettingsPage
+
+from engine.virtual_lab.virtual_cpu import VirtualCPU
+from engine.virtual_lab.virtual_scheduler import VirtualScheduler
 
 
 class MainWindow(QMainWindow):
@@ -37,23 +44,31 @@ class MainWindow(QMainWindow):
 
     NAV_SECTIONS: Dict[int, Tuple[str, str]] = {
         0: ("Dashboard", "Workstation Overview & Activity Feed"),
-        1: ("Data Parallelism", "Scatter / SIMD Compute / Gather Visualizer"),
-        2: ("Task Parallelism", "Heterogeneous Workloads & DAG Dependency Manager"),
-        3: ("Core Monitor", "CPU Core Topology & Affinity Controller"),
-        4: ("Process Scheduler", "Educational Queue & Dispatch Simulator"),
-        5: ("Performance Analytics", "Speedup, Efficiency & Amdahl's Law"),
-        6: ("Settings", "Process Timeouts, Engine & Probing Config"),
+        1: ("Core Monitor", "CPU Core Topology & Live Utilization"),
+        2: ("Process Monitor", "Live OS Processes & CoreSync Workers"),
+        3: ("Real CPU Stress", "Safety-Bounded Multi-Process Stress Generator"),
+        4: ("Virtual CPU Config", "Topology Architect & Heterogeneous P/E Presets"),
+        5: ("Virtual Core Monitor", "Simulated Core Matrix & Utilization Grid"),
+        6: ("Virtual Scheduler", "FCFS, Priority & Round Robin Lab"),
+        7: ("Data Parallelism", "Scatter / SIMD Compute / Gather Visualizer"),
+        8: ("Task Parallelism", "Heterogeneous Workloads & DAG Dependency Manager"),
+        9: ("Performance Analytics", "Speedup, Efficiency & Amdahl's Law"),
+        10: ("Settings", "Process Timeouts, Engine & Probing Config"),
     }
 
     def __init__(self, start_monitor: bool = True):
         super().__init__()
         self.summary = get_system_summary()
         self.setWindowTitle(f"{APP_NAME} - {APP_SUBTITLE} (v{APP_VERSION})")
-        self.resize(1280, 800)
+        self.resize(1300, 840)
         self.setMinimumSize(1024, 680)
 
         # Apply dark workstation styling
         self.setStyleSheet(DARK_STYLESHEET)
+
+        # Setup Virtual Lab Engine Instances
+        self.virtual_cpu = VirtualCPU()
+        self.virtual_scheduler = VirtualScheduler(self.virtual_cpu)
 
         # Setup UI layouts and pages
         self._setup_ui()
@@ -92,25 +107,43 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(self.pages, stretch=1)
         main_layout.addWidget(content_container, stretch=1)
 
-        # 3. Instantiate & Add All 7 Functional Pages
+        # 3. Instantiate & Add All Functional Pages
+        # Real System
         self.page_dashboard = DashboardPage(self)
+        self.page_core = CoreMonitorPage(self)
+        self.page_real_proc = RealProcessPage(self)
+        self.page_real_stress = RealStressPage(self)
+
+        # Virtual Lab
+        self.page_vconfig = VirtualConfigPage(self.virtual_cpu, self)
+        self.page_vmonitor = VirtualMonitorPage(self.virtual_cpu, self)
+        self.page_vscheduler = VirtualSchedulerPage(self.virtual_scheduler, self)
+
+        # Concurrency & Analytics
         self.page_data = DataParallelismPage(self)
         self.page_task = TaskParallelismPage(self)
-        self.page_core = CoreMonitorPage(self)
-        self.page_scheduler = SchedulerViewPage(self)
         self.page_performance = PerformancePage(self)
         self.page_settings = SettingsPage(self)
 
         self.pages.addWidget(self.page_dashboard)    # Index 0
-        self.pages.addWidget(self.page_data)         # Index 1
-        self.pages.addWidget(self.page_task)         # Index 2
-        self.pages.addWidget(self.page_core)         # Index 3
-        self.pages.addWidget(self.page_scheduler)    # Index 4
-        self.pages.addWidget(self.page_performance)  # Index 5
-        self.pages.addWidget(self.page_settings)     # Index 6
+        self.pages.addWidget(self.page_core)         # Index 1
+        self.pages.addWidget(self.page_real_proc)    # Index 2
+        self.pages.addWidget(self.page_real_stress)  # Index 3
+        self.pages.addWidget(self.page_vconfig)      # Index 4
+        self.pages.addWidget(self.page_vmonitor)     # Index 5
+        self.pages.addWidget(self.page_vscheduler)   # Index 6
+        self.pages.addWidget(self.page_data)         # Index 7
+        self.pages.addWidget(self.page_task)         # Index 8
+        self.pages.addWidget(self.page_performance)  # Index 9
+        self.pages.addWidget(self.page_settings)     # Index 10
 
         # Connect Dashboard quick navigation requests
         self.page_dashboard.navigate_requested.connect(self.navigate_to_page)
+
+        # Connect Virtual Lab inter-page signals
+        self.page_vconfig.configuration_applied.connect(lambda cfg: self.page_vmonitor.rebuild_for_new_config())
+        self.page_vconfig.configuration_applied.connect(lambda cfg: self.page_vscheduler._reset_scheduler())
+        self.page_vscheduler.simulation_stepped.connect(self.page_vmonitor.refresh_display)
 
     def _create_sidebar(self) -> QWidget:
         sidebar = QWidget(self)
@@ -135,18 +168,26 @@ class MainWindow(QMainWindow):
 
         # Categories & Navigation Items
         categories = [
-            ("OVERVIEW", [("Dashboard", 0)]),
-            ("PARALLEL PROCESSING", [
-                ("Data Parallelism", 1),
-                ("Task Parallelism", 2),
+            ("OVERVIEW", [
+                ("Dashboard", 0),
             ]),
-            ("SYSTEM & SCHEDULING", [
-                ("Core Monitor", 3),
-                ("Process Scheduler", 4),
+            ("REAL SYSTEM", [
+                ("Core Monitor", 1),
+                ("Process Monitor", 2),
+                ("Real CPU Stress", 3),
+            ]),
+            ("VIRTUAL LAB", [
+                ("Virtual CPU Config", 4),
+                ("Virtual Core Monitor", 5),
+                ("Virtual Scheduler", 6),
+            ]),
+            ("PARALLEL PROCESSING", [
+                ("Data Parallelism", 7),
+                ("Task Parallelism", 8),
             ]),
             ("ANALYTICS & CONFIG", [
-                ("Performance Analytics", 5),
-                ("Settings", 6),
+                ("Performance Analytics", 9),
+                ("Settings", 10),
             ]),
         ]
 
@@ -197,6 +238,7 @@ class MainWindow(QMainWindow):
         self.cpu_monitor = CPUMonitorService(refresh_interval_ms=1000, parent=self)
         self.cpu_monitor.metrics_updated.connect(self.page_dashboard.update_metrics)
         self.cpu_monitor.metrics_updated.connect(self.page_core.update_metrics)
+        self.cpu_monitor.metrics_updated.connect(self.page_real_proc.update_metrics)
         self.cpu_monitor.metrics_updated.connect(self._on_metrics_updated)
         self.cpu_monitor.start()
 
@@ -227,7 +269,11 @@ class MainWindow(QMainWindow):
         )
 
     def shutdown(self) -> None:
-        """Explicitly stop background services and join threads."""
+        """Explicitly stop background services, simulation timers, and workers."""
+        if hasattr(self, "page_real_stress"):
+            self.page_real_stress.shutdown()
+        if hasattr(self, "page_vscheduler"):
+            self.page_vscheduler.shutdown()
         if getattr(self, "cpu_monitor", None) is not None and self.cpu_monitor.is_running():
             self.cpu_monitor.stop(timeout_ms=1000)
 

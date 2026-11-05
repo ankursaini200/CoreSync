@@ -125,7 +125,19 @@ class DashboardPage(QWidget):
         )
         grid.addWidget(self.card_cpu_load, 0, 0)
 
-        # 2. Physical Cores
+        # 2. System RAM Usage Card
+        self.card_ram = MetricCard(
+            title="System Memory",
+            value="Sampling...",
+            subtitle="Host physical RAM allocation",
+            status_text="psutil",
+            status_theme="info",
+            show_progress=True,
+            progress_val=0,
+        )
+        grid.addWidget(self.card_ram, 0, 1)
+
+        # 3. Physical Cores
         self.card_physical = MetricCard(
             title="Physical Cores",
             value=f"{self.summary.physical_cores} Cores",
@@ -133,9 +145,9 @@ class DashboardPage(QWidget):
             status_text="Verified",
             status_theme="success",
         )
-        grid.addWidget(self.card_physical, 0, 1)
+        grid.addWidget(self.card_physical, 0, 2)
 
-        # 3. Logical Threads
+        # 4. Logical Threads
         self.card_logical = MetricCard(
             title="Logical CPUs",
             value=f"{self.summary.logical_cores} Threads",
@@ -143,17 +155,7 @@ class DashboardPage(QWidget):
             status_text="Optimal",
             status_theme="success",
         )
-        grid.addWidget(self.card_logical, 0, 2)
-
-        # 4. OS & Kernel
-        self.card_platform = MetricCard(
-            title="Host Platform",
-            value=self.summary.os_name[:18],
-            subtitle=self.summary.os_kernel,
-            status_text=self.summary.architecture,
-            status_theme="info",
-        )
-        grid.addWidget(self.card_platform, 0, 3)
+        grid.addWidget(self.card_logical, 0, 3)
 
         return grid
 
@@ -161,65 +163,65 @@ class DashboardPage(QWidget):
         grid = QGridLayout()
         grid.setSpacing(14)
 
-        card_data = ActionCard(
-            title="Data Parallelism",
-            description="Partition datasets into chunks across worker processes performing SIMD / vector map-reduce.",
-            button_text="Launch Data Parallelism →",
-            badge_text="Awaiting Phase 5",
-            badge_theme="warning",
+        card_core = ActionCard(
+            title="Real Core Monitor",
+            description="Inspect physical vs logical CPU core topologies, SMT threads, and live per-core utilization.",
+            button_text="Inspect Real Cores →",
+            badge_text="Real Hardware",
+            badge_theme="success",
             on_click=lambda: self.navigate_requested.emit(1),
         )
-        grid.addWidget(card_data, 0, 0)
+        grid.addWidget(card_core, 0, 0)
 
-        card_task = ActionCard(
-            title="Task Parallelism",
-            description="Execute heterogeneous CPU-bound tasks with dependency graphs (DAG) and priority scheduling.",
-            button_text="Launch Task Parallelism →",
-            badge_text="Awaiting Phase 6",
-            badge_theme="warning",
+        card_proc = ActionCard(
+            title="Real Process Monitor",
+            description="Observe top CPU/memory consuming operating system processes and active CoreSync workers.",
+            button_text="View Processes →",
+            badge_text="Real Hardware",
+            badge_theme="success",
             on_click=lambda: self.navigate_requested.emit(2),
         )
-        grid.addWidget(card_task, 0, 1)
+        grid.addWidget(card_proc, 0, 1)
 
-        card_monitor = ActionCard(
-            title="Core Monitor",
-            description="Inspect physical vs logical CPU core topologies, SMT threads, and preview process CPU affinities.",
-            button_text="Inspect Cores →",
-            badge_text="Live Active",
-            badge_theme="success",
+        card_stress = ActionCard(
+            title="Real CPU Stress Tool",
+            description="Safely generate multicore CPU load with duty-cycle throttling and automatic timeout caps.",
+            button_text="Launch Stress Lab →",
+            badge_text="Safety Guarded",
+            badge_theme="danger",
             on_click=lambda: self.navigate_requested.emit(3),
         )
-        grid.addWidget(card_monitor, 1, 0)
+        grid.addWidget(card_stress, 0, 2)
 
-        card_scheduler = ActionCard(
-            title="Process Scheduler",
-            description="Compare educational dispatch policies (FCFS, Priority, Round Robin) with a visual ready queue.",
-            button_text="View Scheduler →",
-            badge_text="Awaiting Phase 8",
-            badge_theme="warning",
+        card_vconfig = ActionCard(
+            title="Virtual CPU Architect",
+            description="Design custom simulated processors with 1-128 cores and asymmetric P/E hybrid ratios.",
+            button_text="Configure CPU →",
+            badge_text="Virtual Lab",
+            badge_theme="info",
             on_click=lambda: self.navigate_requested.emit(4),
         )
-        grid.addWidget(card_scheduler, 1, 1)
+        grid.addWidget(card_vconfig, 1, 0)
 
-        card_analytics = ActionCard(
-            title="Performance Analytics",
-            description="Benchmark sequential vs parallel speedup and efficiency curves illustrating Amdahl's Law.",
-            button_text="Analyze Speedup →",
-            badge_text="Awaiting Phase 9",
-            badge_theme="warning",
+        card_vmonitor = ActionCard(
+            title="Virtual Core Monitor",
+            description="Visualize simulated multicore execution matrices and individual virtual core utilization.",
+            button_text="View Matrix →",
+            badge_text="Virtual Lab",
+            badge_theme="info",
             on_click=lambda: self.navigate_requested.emit(5),
         )
-        grid.addWidget(card_analytics, 2, 0)
+        grid.addWidget(card_vmonitor, 1, 1)
 
-        card_settings = ActionCard(
-            title="Workstation Settings",
-            description="Configure default worker limits, process timeouts, hardware probing, and logging targets.",
-            button_text="Open Settings →",
-            badge_text="Config Ready",
-            badge_theme="neutral",
+        card_vscheduler = ActionCard(
+            title="Virtual Scheduling Lab",
+            description="Experiment with FCFS, Priority, and Round Robin scheduling algorithms on virtual cores.",
+            button_text="Launch Scheduler →",
+            badge_text="Virtual Lab",
+            badge_theme="info",
             on_click=lambda: self.navigate_requested.emit(6),
         )
-        grid.addWidget(card_settings, 2, 1)
+        grid.addWidget(card_vscheduler, 1, 2)
 
         return grid
 
@@ -252,3 +254,9 @@ class DashboardPage(QWidget):
         self.card_cpu_load.set_value(f"{val:.1f} %")
         if self.card_cpu_load.progress_bar:
             self.card_cpu_load.progress_bar.setValue(int(round(val)))
+
+        if hasattr(self, "card_ram") and snapshot.ram_total_gb > 0:
+            self.card_ram.set_value(f"{snapshot.ram_used_gb:.1f} / {snapshot.ram_total_gb:.1f} GB")
+            self.card_ram.set_subtitle(f"{snapshot.ram_percent:.1f}% utilized")
+            if self.card_ram.progress_bar:
+                self.card_ram.progress_bar.setValue(int(round(snapshot.ram_percent)))

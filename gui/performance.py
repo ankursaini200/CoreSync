@@ -56,7 +56,32 @@ class PerformancePage(QWidget):
         chart_card = self._create_chart_card()
         layout.addWidget(chart_card)
 
+        # 5. Real System vs Virtual Lab Comparison Card
+        comp_card = self._create_comparison_card()
+        layout.addWidget(comp_card)
+
         layout.addStretch(1)
+
+    def _create_comparison_card(self) -> QFrame:
+        card = QFrame()
+        card.setProperty("class", "card")
+        layout = QVBoxLayout(card)
+        layout.setSpacing(10)
+
+        title = QLabel("Dual Environment Analytics Paradigm")
+        title.setProperty("class", "heading-2")
+        layout.addWidget(title)
+
+        text = QLabel(
+            "• Real System Analytics: Measures empirical wall-clock microseconds, POSIX spawn latency, "
+            "inter-process communication (IPC) transfer overhead, and thermal throttling under genuine hardware execution.\n"
+            "• Virtual Lab Analytics: Measures discrete simulated clock ticks, algorithmic waiting latency in the ready queue, "
+            "Round Robin quantum preemption, and theoretical multicore throughput across customized virtual topologies."
+        )
+        text.setStyleSheet("color: #8b949e; line-height: 1.5; font-size: 12px;")
+        layout.addWidget(text)
+
+        return card
 
     def _create_header_card(self) -> QFrame:
         card = QFrame()

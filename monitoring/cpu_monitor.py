@@ -12,6 +12,9 @@ from PySide6.QtCore import QMutex, QObject, QThread, QTimer, Signal, Slot
 logger = logging.getLogger("CoreSync.CPUMonitor")
 
 
+from utils.hardware.base import ProcessInfo
+
+
 @dataclass
 class CPUMetricsSnapshot:
     """Immutable snapshot of live system and per-core CPU metrics."""
@@ -20,6 +23,12 @@ class CPUMetricsSnapshot:
     per_cpu_percent: List[float]
     per_cpu_freq_mhz: Optional[List[float]] = None
     process_affinity: List[int] = field(default_factory=list)
+    ram_used_gb: float = 0.0
+    ram_total_gb: float = 0.0
+    ram_percent: float = 0.0
+    top_processes: List[ProcessInfo] = field(default_factory=list)
+    coresync_workers_count: int = 0
+    coresync_worker_pids: List[int] = field(default_factory=list)
 
 
 class CPUMonitorWorker(QObject):
@@ -121,12 +130,65 @@ class CPUMonitorWorker(QObject):
             except Exception:
                 pass
 
+            # Query RAM usage
+            ram_used_gb, ram_total_gb, ram_pct = 0.0, 0.0, 0.0
+            try:
+                vm = psutil.virtual_memory()
+                ram_total_gb = vm.total / (1024 ** 3)
+                ram_used_gb = vm.used / (1024 ** 3)
+                ram_pct = vm.percent
+            except Exception:
+                pass
+
+            # Query Top Running Processes (lightweight sample)
+            top_procs: List[ProcessInfo] = []
+            worker_pids: List[int] = []
+            my_pid = os.getpid()
+            try:
+                for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent", "memory_info", "cmdline"]):
+                    try:
+                        p_info = p.info
+                        pid = p_info.get("pid") or 0
+                        p_name = p_info.get("name") or "Unknown"
+                        cmdline = " ".join(p_info.get("cmdline") or [])
+                        is_worker = ("CoreSync" in cmdline or "coresync" in cmdline) and pid != my_pid
+                        if is_worker:
+                            worker_pids.append(pid)
+
+                        c_pct = p_info.get("cpu_percent") or 0.0
+                        m_pct = p_info.get("memory_percent") or 0.0
+                        mem_inf = p_info.get("memory_info")
+                        rss = (mem_inf.rss / (1024 * 1024)) if mem_inf else 0.0
+
+                        top_procs.append(
+                            ProcessInfo(
+                                pid=pid,
+                                name=p_name,
+                                cpu_percent=c_pct,
+                                memory_percent=m_pct,
+                                memory_rss_mb=rss,
+                                is_coresync_worker=is_worker,
+                            )
+                        )
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+                top_procs.sort(key=lambda x: x.cpu_percent, reverse=True)
+                top_procs = top_procs[:10]
+            except Exception:
+                pass
+
             snapshot = CPUMetricsSnapshot(
                 timestamp=now,
                 overall_percent=overall,
                 per_cpu_percent=per_cpu,
                 per_cpu_freq_mhz=freq_list,
                 process_affinity=sorted(affinity) if affinity else list(range(len(per_cpu))),
+                ram_used_gb=ram_used_gb,
+                ram_total_gb=ram_total_gb,
+                ram_percent=ram_pct,
+                top_processes=top_procs,
+                coresync_workers_count=len(worker_pids),
+                coresync_worker_pids=worker_pids,
             )
             self.metrics_updated.emit(snapshot)
 
