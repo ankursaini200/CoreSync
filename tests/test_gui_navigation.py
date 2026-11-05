@@ -16,7 +16,7 @@ from gui.settings import SettingsPage
 
 def test_main_window_all_seven_pages(qapp):
     """Verify that MainWindow initializes all 7 required pages."""
-    window = MainWindow()
+    window = MainWindow(start_monitor=False)
     assert window.pages.count() == 7
 
     assert isinstance(window.pages.widget(0), DashboardPage)
@@ -31,7 +31,7 @@ def test_main_window_all_seven_pages(qapp):
 
 def test_sidebar_navigation_switching(qapp):
     """Verify that clicking each of the 7 sidebar buttons switches the active page."""
-    window = MainWindow()
+    window = MainWindow(start_monitor=False)
     assert window.pages.currentIndex() == 0
 
     # Test navigating through all 7 pages via buttons
@@ -49,7 +49,7 @@ def test_sidebar_navigation_switching(qapp):
 
 def test_dashboard_quick_navigation_signals(qapp):
     """Verify that quick action cards on Dashboard trigger navigation."""
-    window = MainWindow()
+    window = MainWindow(start_monitor=False)
     assert window.pages.currentIndex() == 0
 
     # Request navigation to Data Parallelism (index 1)
@@ -67,7 +67,7 @@ def test_dashboard_quick_navigation_signals(qapp):
 
 def test_window_resizing(qapp):
     """Test window resizing and ensure minimum geometry constraints."""
-    window = MainWindow()
+    window = MainWindow(start_monitor=False)
     window.resize(1024, 680)
     assert window.width() >= 1024
     assert window.height() >= 680

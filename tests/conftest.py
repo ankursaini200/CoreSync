@@ -18,14 +18,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-@pytest.fixture(scope="session")
-def qapp():
-    """Session-scoped PySide6 QApplication fixture."""
-    from PySide6.QtWidgets import QApplication
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    yield app
+def pytest_sessionfinish(session, exitstatus):
+    """Clean process termination to prevent PySide6 / glibc C++ static destructor segfault at exit."""
+    import os
+    os._exit(session.exitstatus)
 
 
 @pytest.fixture

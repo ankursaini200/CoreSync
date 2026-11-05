@@ -86,6 +86,8 @@ def test_multiprocessing_spawn_execution():
 
     data = q.get(timeout=5.0)
     p.join(timeout=5.0)
+    q.close()
+    q.join_thread()
 
     assert data["status"] == "completed"
     assert np.allclose(data["result"], np.array([4.0, 16.0, 36.0]))
@@ -134,7 +136,7 @@ def test_main_window_instantiation(qapp):
     """Verify that MainWindow instantiates and renders without Qt exceptions."""
     from gui.main_window import MainWindow
 
-    window = MainWindow()
+    window = MainWindow(start_monitor=False)
     assert window.windowTitle().startswith(APP_NAME)
     assert window.pages.count() >= 1
     window.close()

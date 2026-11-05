@@ -3,6 +3,7 @@
 import sys
 from typing import Dict, Tuple
 from PySide6.QtCore import Qt, Slot
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -18,6 +19,8 @@ from PySide6.QtWidgets import (
 )
 
 from utils.config import APP_NAME, APP_SUBTITLE, APP_VERSION
+from utils.system_info import get_system_summary
+from monitoring.cpu_monitor import CPUMetricsSnapshot, CPUMonitorService
 from gui.styles import DARK_STYLESHEET
 from gui.components.header_bar import HeaderBar
 from gui.dashboard import DashboardPage
@@ -42,8 +45,9 @@ class MainWindow(QMainWindow):
         6: ("Settings", "Process Timeouts, Engine & Probing Config"),
     }
 
-    def __init__(self):
+    def __init__(self, start_monitor: bool = True):
         super().__init__()
+        self.summary = get_system_summary()
         self.setWindowTitle(f"{APP_NAME} - {APP_SUBTITLE} (v{APP_VERSION})")
         self.resize(1280, 800)
         self.setMinimumSize(1024, 680)
@@ -51,8 +55,14 @@ class MainWindow(QMainWindow):
         # Apply dark workstation styling
         self.setStyleSheet(DARK_STYLESHEET)
 
+        # Setup UI layouts and pages
         self._setup_ui()
         self._setup_status_bar()
+
+        # Initialize and start CPU monitoring service in background QThread
+        self.cpu_monitor: Optional[CPUMonitorService] = None
+        if start_monitor:
+            self._init_monitoring_service()
 
     def _setup_ui(self) -> None:
         central_widget = QWidget(self)
@@ -74,6 +84,7 @@ class MainWindow(QMainWindow):
 
         # Top Header Bar
         self.header_bar = HeaderBar(content_container)
+        self.header_bar.hardware_pill.setText(f"{self.summary.physical_cores}P / {self.summary.logical_cores}L Cores")
         content_layout.addWidget(self.header_bar)
 
         # Stacked Pages
@@ -170,9 +181,9 @@ class MainWindow(QMainWindow):
         ws_label.setStyleSheet("font-weight: 600; font-size: 11px;")
         footer_layout.addWidget(ws_label)
 
-        status_label = QLabel("Isolated Process Pool: Idle", footer_frame)
-        status_label.setProperty("class", "muted")
-        footer_layout.addWidget(status_label)
+        self.sidebar_load_label = QLabel("Sampling CPU...", footer_frame)
+        self.sidebar_load_label.setProperty("class", "muted")
+        footer_layout.addWidget(self.sidebar_load_label)
 
         version_label = QLabel(f"CoreSync v{APP_VERSION}", footer_frame)
         version_label.setStyleSheet("color: #58a6ff; font-size: 10px; font-weight: 600;")
@@ -181,22 +192,46 @@ class MainWindow(QMainWindow):
         layout.addWidget(footer_frame)
         return sidebar
 
+    def _init_monitoring_service(self) -> None:
+        """Initialize single shared CPU monitoring service and connect consumer signals."""
+        self.cpu_monitor = CPUMonitorService(refresh_interval_ms=1000, parent=self)
+        self.cpu_monitor.metrics_updated.connect(self.page_dashboard.update_metrics)
+        self.cpu_monitor.metrics_updated.connect(self.page_core.update_metrics)
+        self.cpu_monitor.metrics_updated.connect(self._on_metrics_updated)
+        self.cpu_monitor.start()
+
+    @Slot(CPUMetricsSnapshot)
+    def _on_metrics_updated(self, snapshot: CPUMetricsSnapshot) -> None:
+        """Handle metrics in main window status displays."""
+        self.sidebar_load_label.setText(f"System Load: {snapshot.overall_percent:.1f}%")
+
     @Slot(int)
     def navigate_to_page(self, index: int) -> None:
         """Switch active page and update sidebar button and header bar."""
         if 0 <= index < self.pages.count():
             self.pages.setCurrentIndex(index)
-            # Ensure corresponding button is checked
             if index in self.nav_buttons and not self.nav_buttons[index].isChecked():
                 self.nav_buttons[index].setChecked(True)
 
-            # Update header bar breadcrumb and title
             section_name, subtitle = self.NAV_SECTIONS.get(index, ("CoreSync", ""))
             self.header_bar.update_header(section_name, subtitle)
-
-            self.statusBar().showMessage(f"Viewing: {section_name} | Multiprocessing spawn context active")
+            self.statusBar().showMessage(
+                f"Viewing: {section_name} | {self.summary.physical_cores} Physical / {self.summary.logical_cores} Logical CPUs"
+            )
 
     def _setup_status_bar(self) -> None:
         status_bar = QStatusBar(self)
         self.setStatusBar(status_bar)
-        status_bar.showMessage("Ready | Multiprocessing context: spawn | 14 Physical Cores / 20 Logical Threads")
+        status_bar.showMessage(
+            f"Ready | {self.summary.cpu_model} ({self.summary.physical_cores} Physical / {self.summary.logical_cores} Logical CPUs)"
+        )
+
+    def shutdown(self) -> None:
+        """Explicitly stop background services and join threads."""
+        if getattr(self, "cpu_monitor", None) is not None and self.cpu_monitor.is_running():
+            self.cpu_monitor.stop(timeout_ms=1000)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Ensure background monitoring thread stops cleanly on application close."""
+        self.shutdown()
+        super().closeEvent(event)

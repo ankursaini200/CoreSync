@@ -1,9 +1,10 @@
-"""Dashboard Page for CoreSync Workstation."""
+"""Dashboard Page for CoreSync Workstation.
 
-import platform
-import psutil
-from typing import Callable, Optional
-from PySide6.QtCore import Qt, Signal
+Consumes centralized SystemSummary and live CPUMetricsSnapshot.
+"""
+
+from typing import Optional
+from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -16,6 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from utils.config import APP_NAME, APP_VERSION
+from utils.system_info import SystemSummary, get_system_summary
+from monitoring.cpu_monitor import CPUMetricsSnapshot
 from gui.components.badge import StatusBadge
 from gui.components.metric_card import MetricCard
 from gui.components.action_card import ActionCard
@@ -28,6 +31,7 @@ class DashboardPage(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
+        self.summary: SystemSummary = get_system_summary()
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -76,16 +80,17 @@ class DashboardPage(QWidget):
         text_col = QVBoxLayout()
         text_col.setSpacing(6)
 
-        tag = StatusBadge("Academic Operating Systems Workstation", "info")
+        tag = StatusBadge(self.summary.detection_status, "info")
         text_col.addWidget(tag, alignment=Qt.AlignLeft)
 
-        title = QLabel(f"Welcome to {APP_NAME} v{APP_VERSION}")
+        title = QLabel(f"{APP_NAME} Workstation - {self.summary.cpu_model}")
         title.setProperty("class", "heading-1")
         text_col.addWidget(title)
 
         desc = QLabel(
-            "Empirical Multicore Processing, Data Parallelism, and Task Parallelism Simulator.\n"
-            "Executing genuine concurrent operating system processes across physical and logical cores."
+            f"Host System: {self.summary.os_name} ({self.summary.os_kernel}, {self.summary.architecture}).\n"
+            f"Hardware: {self.summary.physical_cores} Physical Cores, {self.summary.logical_cores} Logical Execution Threads. "
+            f"Active process affinity: {len(self.summary.current_affinity)} cores."
         )
         desc.setStyleSheet("color: #8b949e; line-height: 1.4;")
         text_col.addWidget(desc)
@@ -108,48 +113,47 @@ class DashboardPage(QWidget):
         grid = QGridLayout()
         grid.setSpacing(14)
 
-        # Gather genuine hardware values
-        physical_cores = psutil.cpu_count(logical=False) or "N/A"
-        logical_cores = psutil.cpu_count(logical=True) or "N/A"
-        os_info = f"{platform.system()} {platform.release()[:14]}"
-        python_ver = platform.python_version()
+        # 1. Overall Live CPU Utilization Card
+        self.card_cpu_load = MetricCard(
+            title="Overall CPU Load",
+            value="0.0 %",
+            subtitle="Aggregated CPU utilization across all cores",
+            status_text="Live Sampler",
+            status_theme="success",
+            show_progress=True,
+            progress_val=0,
+        )
+        grid.addWidget(self.card_cpu_load, 0, 0)
 
-        # Real Metric Cards
+        # 2. Physical Cores
         self.card_physical = MetricCard(
-            title="Physical CPU Cores",
-            value=f"{physical_cores} Cores",
-            subtitle="Hardware execution units on chip die",
+            title="Physical Cores",
+            value=f"{self.summary.physical_cores} Cores",
+            subtitle=f"{self.summary.cpu_vendor} hardware units",
             status_text="Verified",
             status_theme="success",
         )
-        grid.addWidget(self.card_physical, 0, 0)
+        grid.addWidget(self.card_physical, 0, 1)
 
+        # 3. Logical Threads
         self.card_logical = MetricCard(
-            title="Logical CPU Threads",
-            value=f"{logical_cores} Threads",
-            subtitle="SMT / Hyperthreading addressable CPUs",
+            title="Logical CPUs",
+            value=f"{self.summary.logical_cores} Threads",
+            subtitle="SMT / Hyperthreading addressable",
             status_text="Optimal",
             status_theme="success",
         )
-        grid.addWidget(self.card_logical, 0, 1)
+        grid.addWidget(self.card_logical, 0, 2)
 
+        # 4. OS & Kernel
         self.card_platform = MetricCard(
             title="Host Platform",
-            value=os_info,
-            subtitle="Preemptive multi-user Linux kernel",
-            status_text="Arch Linux",
+            value=self.summary.os_name[:18],
+            subtitle=self.summary.os_kernel,
+            status_text=self.summary.architecture,
             status_theme="info",
         )
-        grid.addWidget(self.card_platform, 0, 2)
-
-        self.card_runtime = MetricCard(
-            title="Python Runtime",
-            value=f"v{python_ver}",
-            subtitle="PySide6 6.12 | NumPy 2.5 | psutil 7.2",
-            status_text="Verified",
-            status_theme="success",
-        )
-        grid.addWidget(self.card_runtime, 0, 3)
+        grid.addWidget(self.card_platform, 0, 3)
 
         return grid
 
@@ -157,7 +161,6 @@ class DashboardPage(QWidget):
         grid = QGridLayout()
         grid.setSpacing(14)
 
-        # Action cards matching the 6 secondary sections
         card_data = ActionCard(
             title="Data Parallelism",
             description="Partition datasets into chunks across worker processes performing SIMD / vector map-reduce.",
@@ -180,10 +183,10 @@ class DashboardPage(QWidget):
 
         card_monitor = ActionCard(
             title="Core Monitor",
-            description="Inspect physical vs logical CPU core topologies, SMT threads, and set process CPU affinities.",
+            description="Inspect physical vs logical CPU core topologies, SMT threads, and preview process CPU affinities.",
             button_text="Inspect Cores →",
-            badge_text="Awaiting Phase 4",
-            badge_theme="info",
+            badge_text="Live Active",
+            badge_theme="success",
             on_click=lambda: self.navigate_requested.emit(3),
         )
         grid.addWidget(card_monitor, 1, 0)
@@ -230,14 +233,22 @@ class DashboardPage(QWidget):
         header.setProperty("class", "heading-2")
         layout.addWidget(header)
 
+        hybrid_status = "Intel Hybrid (P/E Cores Detected)" if self.summary.topology.is_hybrid else "Symmetric Multiprocessing (SMP)"
         notice = QLabel(
-            "• Multiprocessing Architecture: Fully configured under POSIX spawn start method.\n"
-            "• Real Execution Guarantee: CoreSync strictly avoids simulated delays or synthetic CPU metrics. "
-            "All parallel workloads will spawn actual OS child processes.\n"
-            "• OS Preemption Notice: CPU affinity specifies allowable CPU sets; actual time-slicing is governed by the Linux CFS scheduler."
+            f"• CPU Architecture: {self.summary.cpu_model} [{hybrid_status}]\n"
+            f"• Concurrency Engine: Initialized under POSIX 'spawn' start method.\n"
+            f"• Real Execution Guarantee: CoreSync strictly avoids simulated delays or synthetic CPU metrics.\n"
+            f"• Live Monitoring Service: Active in background QThread ({self.summary.logical_cores} cores sampled concurrently)."
         )
         notice.setStyleSheet("color: #8b949e; line-height: 1.5; font-size: 12px;")
         layout.addWidget(notice)
 
         return panel
 
+    @Slot(CPUMetricsSnapshot)
+    def update_metrics(self, snapshot: CPUMetricsSnapshot) -> None:
+        """Receive live overall CPU metrics update."""
+        val = snapshot.overall_percent
+        self.card_cpu_load.set_value(f"{val:.1f} %")
+        if self.card_cpu_load.progress_bar:
+            self.card_cpu_load.progress_bar.setValue(int(round(val)))

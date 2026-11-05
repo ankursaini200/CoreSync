@@ -4,6 +4,30 @@ All notable changes to the CoreSync project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] - Phase 4: CPU Hardware Detection, Sysfs Topology & Live Core Monitoring
+
+### Added
+- Linux sysfs CPU topology parser (`utils/cpu_topology.py`):
+  - Standard Linux CPU-list syntax parser (`parse_cpu_list`) supporting complex range combinations (e.g. `0-3,8-11,14`).
+  - Physical socket package identification via `topology/physical_package_id`.
+  - Physical core identification and SMT thread siblings detection via `topology/thread_siblings_list`.
+  - Authoritative Intel Hybrid PMU core type detection (`/sys/bus/event_source/devices/cpu_core` for P-cores, `cpu_atom` for E-cores).
+  - Deterministic unit test support using mock sysfs directory trees.
+- Consolidated hardware & system information service (`utils/system_info.py`):
+  - CPU model and vendor querying (`/proc/cpuinfo` with platform fallbacks).
+  - Physical and logical core count consolidation.
+  - Active process CPU affinity retrieval (`os.sched_getaffinity` / `psutil`).
+  - CPU frequency range detection (`cpufreq`).
+- Asynchronous CPU monitoring service (`monitoring/cpu_monitor.py`):
+  - `CPUMonitorWorker` running in a dedicated `QThread` with periodic `QTimer` sampling.
+  - `CPUMonitorService` singleton coordinator ensuring a single shared thread without UI event loop lag.
+  - Clean QueuedConnection signal shutdown avoiding cross-thread timer warnings.
+- GUI Dashboard & Core Monitor Integration:
+  - `gui/core_monitor.py`: Real-time 20-core utilization grid with P-Core (`#388bfd`) and E-Core (`#a371f7`) badges, live percentage meters, and frequency indicators.
+  - `gui/dashboard.py`: Live overall CPU utilization card and progress bar consuming the centralized monitoring service.
+  - `gui/main_window.py`: Automatic thread lifecycle management on application startup and window close.
+- 15 new automated unit & integration tests covering topology parsing, SMT detection, PMU hybrid classification, system summary consolidation, and monitor service lifecycle (total: 27 tests).
+
 ## [0.2.0] - Phase 3: Dark GUI Shell, Sidebar Navigation & View Routing
 
 ### Added
