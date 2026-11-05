@@ -4,6 +4,24 @@ All notable changes to the CoreSync project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.2] - Phase 5.2: Benchmark Metric Terminology Correction
+
+### Changed
+- **Input Latency Metric Renaming**:
+  - Renamed `input_ipc_latency_s` to `input_delivery_latency_s` in `WorkerResult` and `ParallelTimingBreakdown`.
+  - Clarified definition: this measurement measures end-to-end input delivery latency encompassing queue waiting, serialization/delivery, and worker process wake-up / OS scheduling delay (not pure IPC pipe transit time).
+  - Maintained backwards-compatible property alias `input_ipc_latency_s` on `WorkerResult` and `avg_input_ipc_s` on `ParallelTimingBreakdown`.
+- **Derived IPC Overhead Clarification**:
+  - Renamed derived metric $T_{dispatch} + \max(0, T_{collection} - T_{max\_worker\_compute})$ from direct "IPC Overhead" to **"Estimated Distribution and Collection Overhead"** (`estimated_distribution_overhead_s`).
+  - Documented that this value is a derived residual estimate and includes OS process scheduling, synchronization delays, and queue contention rather than pure transport wire overhead.
+  - Retained backwards-compatible property alias `ipc_overhead_s`.
+- **Collection Timing Window Clarification**:
+  - Renamed collection phase description to **"Parallel Execution and Result Collection Window"** (`collection_s`), documenting that worker computation overlaps concurrently with this interval on the master process.
+- **UI & Telemetry Refinements (`gui/data_parallelism.py`)**:
+  - Updated overhead breakdown label to `Estimated Distribution and Collection Overhead`.
+  - Updated worker table header to `Compute Time (Input Delivery Latency)`.
+  - Updated per-chunk status format to reflect delivery delay (`X ms (Y ms delivery delay)`).
+
 ## [0.5.1] - Phase 5.1: IPC and Data Transfer Measurement Audit
 
 ### Added

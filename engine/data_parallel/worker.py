@@ -37,9 +37,14 @@ class WorkerResult:
     compute_time_s: float
     worker_pid: int = 0
     error_message: Optional[str] = None
-    input_ipc_latency_s: float = 0.0
+    input_delivery_latency_s: float = 0.0  # Queue waiting, serialization/delivery, and worker wake-up / OS scheduling delay
     worker_start_time: float = 0.0
     worker_finish_time: float = 0.0
+
+    @property
+    def input_ipc_latency_s(self) -> float:
+        """Backwards-compatible alias for input_delivery_latency_s."""
+        return self.input_delivery_latency_s
 
 
 def data_parallel_worker_loop(task_queue, result_queue, stop_event) -> None:
@@ -68,7 +73,8 @@ def data_parallel_worker_loop(task_queue, result_queue, stop_event) -> None:
             break
 
         t_receive = time.perf_counter()
-        ipc_in_delay = (t_receive - task.dispatch_timestamp) if task.dispatch_timestamp > 0 else 0.0
+        # Delivery latency includes queue waiting, serialization/delivery, and worker wake-up / OS scheduling delay
+        delivery_delay = (t_receive - task.dispatch_timestamp) if task.dispatch_timestamp > 0 else 0.0
 
         t_start = time.perf_counter()
         try:
@@ -84,7 +90,7 @@ def data_parallel_worker_loop(task_queue, result_queue, stop_event) -> None:
                 data=chunk_result,
                 compute_time_s=t_elapsed,
                 worker_pid=worker_pid,
-                input_ipc_latency_s=max(0.0, ipc_in_delay),
+                input_delivery_latency_s=max(0.0, delivery_delay),
                 worker_start_time=t_start,
                 worker_finish_time=t_finish,
             ))
@@ -101,7 +107,7 @@ def data_parallel_worker_loop(task_queue, result_queue, stop_event) -> None:
                 compute_time_s=t_elapsed,
                 worker_pid=worker_pid,
                 error_message=err,
-                input_ipc_latency_s=max(0.0, ipc_in_delay),
+                input_delivery_latency_s=max(0.0, delivery_delay),
                 worker_start_time=t_start,
                 worker_finish_time=t_finish,
             ))

@@ -281,8 +281,12 @@ def test_timing_breakdown_metrics_present_and_positive():
     assert tb.max_worker_compute_s > 0.0, "Worker critical path computation must be measured"
     assert tb.avg_worker_compute_s > 0.0, "Average worker compute must be measured"
     assert tb.sum_worker_compute_s >= tb.max_worker_compute_s, "Sum of worker compute must exceed max"
-    assert tb.avg_input_ipc_s >= 0.0, "Average input IPC latency must be recorded"
-    assert tb.ipc_overhead_s >= tb.dispatch_s, "Total IPC overhead must include input dispatch"
+    assert tb.avg_input_delivery_latency_s >= 0.0, "Average input delivery latency must be recorded"
+    assert tb.estimated_distribution_overhead_s >= tb.dispatch_s, "Estimated distribution overhead must include dispatch"
+
+    # Backward compatibility properties
+    assert tb.avg_input_ipc_s == tb.avg_input_delivery_latency_s
+    assert tb.ipc_overhead_s == tb.estimated_distribution_overhead_s
 
 
 def test_timing_intervals_non_overlapping_and_consistent():
@@ -323,7 +327,8 @@ def test_worker_result_ipc_and_timestamps():
     for r in result.worker_results:
         assert r.worker_pid > 0
         assert r.compute_time_s > 0.0
-        assert r.input_ipc_latency_s >= 0.0
+        assert r.input_delivery_latency_s >= 0.0
+        assert r.input_ipc_latency_s == r.input_delivery_latency_s
         assert r.worker_start_time > 0.0
         assert r.worker_finish_time >= r.worker_start_time
         assert abs((r.worker_finish_time - r.worker_start_time) - r.compute_time_s) < 0.005

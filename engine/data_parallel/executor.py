@@ -42,29 +42,43 @@ class ParallelTimingBreakdown:
     Granular Decomposition:
         - startup_s: Time spent spawning child processes under 'spawn' context.
         - dispatch_s: Time spent partitioning data, packaging tasks, and serializing to IPC queue.
-        - collection_s: Wall-clock interval gathering results from worker pool.
+        - collection_s: Parallel Execution and Result Collection Window. Wall-clock interval
+          gathering results from the worker pool. Note: worker computation overlaps with this interval.
         - compute_s: Primary compute window alias (collection_s).
         - merge_s: Time spent reassembling arrays or reducing scalar outputs.
         - total_s: End-to-end parallel wall-clock duration.
         - max_worker_compute_s: Pure computational duration on slowest worker (critical path).
         - avg_worker_compute_s: Average pure compute time across workers.
         - sum_worker_compute_s: Cumulative CPU compute time across all workers.
-        - avg_input_ipc_s: Average measured IPC queue transit latency per chunk.
-        - ipc_overhead_s: Measured IPC distribution and collection overhead beyond compute.
+        - avg_input_delivery_latency_s: Average measured input delivery latency per chunk,
+          encompassing queue waiting, serialization/delivery, and worker wake-up / OS scheduling delay.
+        - estimated_distribution_overhead_s: Estimated Distribution and Collection Overhead.
+          Derived residual estimate calculated as: T_dispatch + max(0, T_collection - max_worker_compute).
+          Note: This is a derived residual estimate and may include OS scheduling and synchronization delays.
     """
     startup_s: float = 0.0             # Phase 1: Process spawn overhead
     dispatch_s: float = 0.0            # Phase 2: Input preparation, serialization & IPC dispatch
-    collection_s: float = 0.0          # Phase 3: Parallel execution & result gathering window
-    compute_s: float = 0.0             # Primary compute window (collection_s)
+    collection_s: float = 0.0          # Phase 3: Parallel Execution and Result Collection Window (worker compute overlaps)
+    compute_s: float = 0.0             # Primary compute window alias (collection_s)
     merge_s: float = 0.0               # Phase 4: Output reassembly & merge
     total_s: float = 0.0               # End-to-end parallel wall-clock duration
 
-    # Granular Worker & IPC Metrics
+    # Granular Worker & Delivery Metrics
     max_worker_compute_s: float = 0.0  # Pure computation time of slowest worker (critical path)
     avg_worker_compute_s: float = 0.0  # Average pure compute time across all workers
     sum_worker_compute_s: float = 0.0  # Cumulative CPU compute time across all workers
-    avg_input_ipc_s: float = 0.0       # Average measured IPC transit latency per chunk
-    ipc_overhead_s: float = 0.0        # Measured non-overlapping IPC dispatch + collection overhead
+    avg_input_delivery_latency_s: float = 0.0  # Average measured delivery latency per chunk (queue + IPC + wake-up)
+    estimated_distribution_overhead_s: float = 0.0  # Derived residual estimate (dispatch + collection residual)
+
+    @property
+    def avg_input_ipc_s(self) -> float:
+        """Backwards-compatible alias for avg_input_delivery_latency_s."""
+        return self.avg_input_delivery_latency_s
+
+    @property
+    def ipc_overhead_s(self) -> float:
+        """Backwards-compatible alias for estimated_distribution_overhead_s."""
+        return self.estimated_distribution_overhead_s
 
 
 @dataclass
@@ -303,18 +317,20 @@ class DataParallelExecutor:
 
             t_total = time.perf_counter() - t_parallel_start
 
-            # Granular worker compute and IPC calculations
+            # Granular worker compute and delivery calculations
             worker_compute_times = [r.compute_time_s for r in results]
             max_comp = max(worker_compute_times) if worker_compute_times else 0.0
             avg_comp = (sum(worker_compute_times) / len(worker_compute_times)) if worker_compute_times else 0.0
             sum_comp = sum(worker_compute_times)
 
-            ipc_latencies = [r.input_ipc_latency_s for r in results if r.input_ipc_latency_s > 0]
-            avg_ipc = (sum(ipc_latencies) / len(ipc_latencies)) if ipc_latencies else 0.0
+            delivery_latencies = [r.input_delivery_latency_s for r in results if r.input_delivery_latency_s > 0]
+            avg_delivery_latency = (sum(delivery_latencies) / len(delivery_latencies)) if delivery_latencies else 0.0
 
-            # IPC overhead beyond slowest worker computation
-            ipc_collection_gap = max(0.0, t_collection - max_comp)
-            total_ipc_overhead = t_dispatch + ipc_collection_gap
+            # Estimated Distribution and Collection Overhead:
+            # Derived residual estimate: T_dispatch + max(0, T_collection - max_comp).
+            # Includes queue wait times, OS wake-up/scheduling, and synchronization delays.
+            collection_residual_gap = max(0.0, t_collection - max_comp)
+            est_distribution_overhead = t_dispatch + collection_residual_gap
 
             timings = ParallelTimingBreakdown(
                 startup_s=t_spawn,
@@ -326,8 +342,8 @@ class DataParallelExecutor:
                 max_worker_compute_s=max_comp,
                 avg_worker_compute_s=avg_comp,
                 sum_worker_compute_s=sum_comp,
-                avg_input_ipc_s=avg_ipc,
-                ipc_overhead_s=total_ipc_overhead,
+                avg_input_delivery_latency_s=avg_delivery_latency,
+                estimated_distribution_overhead_s=est_distribution_overhead,
             )
 
             return ParallelExecutionResult(

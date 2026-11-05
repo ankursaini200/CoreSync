@@ -328,7 +328,7 @@ class DataParallelismPage(QWidget):
         self.lbl_overhead_compute.setStyleSheet("color: #8b949e; font-size: 11px; font-family: monospace;")
         o_col.addWidget(self.lbl_overhead_compute)
 
-        self.lbl_overhead_collection = QLabel("• Result Dequeue & IPC Transit: -- ms")
+        self.lbl_overhead_collection = QLabel("• Result Dequeue & Collection Residual: -- ms")
         self.lbl_overhead_collection.setStyleSheet("color: #8b949e; font-size: 11px; font-family: monospace;")
         o_col.addWidget(self.lbl_overhead_collection)
 
@@ -336,7 +336,7 @@ class DataParallelismPage(QWidget):
         self.lbl_overhead_merge.setStyleSheet("color: #8b949e; font-size: 11px; font-family: monospace;")
         o_col.addWidget(self.lbl_overhead_merge)
 
-        self.lbl_overhead_ipc_total = QLabel("• Total IPC & Distribution Overhead: -- ms")
+        self.lbl_overhead_ipc_total = QLabel("• Estimated Distribution and Collection Overhead: -- ms")
         self.lbl_overhead_ipc_total.setStyleSheet("color: #58a6ff; font-size: 11px; font-family: monospace; font-weight: 600;")
         o_col.addWidget(self.lbl_overhead_ipc_total)
 
@@ -362,7 +362,7 @@ class DataParallelismPage(QWidget):
             "Process PID",
             "Index Range [Start, End)",
             "Chunk Size",
-            "Compute Time (IPC Delay)",
+            "Compute Time (Input Delivery Latency)",
         ])
         self.table_workers.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_workers.verticalHeader().setVisible(False)
@@ -484,9 +484,9 @@ class DataParallelismPage(QWidget):
         self.lbl_overhead_spawn.setText(f"• Process Spawn: {tb.startup_s * 1000:.2f} ms")
         self.lbl_overhead_dispatch.setText(f"• Input Prep & IPC Dispatch: {tb.dispatch_s * 1000:.2f} ms")
         self.lbl_overhead_compute.setText(f"• Worker Pure Compute (Critical Path): {tb.max_worker_compute_s * 1000:.2f} ms")
-        self.lbl_overhead_collection.setText(f"• Result Dequeue & IPC Transit: {ipc_dequeue_delay * 1000:.2f} ms")
+        self.lbl_overhead_collection.setText(f"• Result Dequeue & Collection Residual: {ipc_dequeue_delay * 1000:.2f} ms")
         self.lbl_overhead_merge.setText(f"• Output Reassembly & Merge: {tb.merge_s * 1000:.2f} ms")
-        self.lbl_overhead_ipc_total.setText(f"• Total IPC & Distribution Overhead: {tb.ipc_overhead_s * 1000:.2f} ms")
+        self.lbl_overhead_ipc_total.setText(f"• Estimated Distribution and Collection Overhead: {tb.estimated_distribution_overhead_s * 1000:.2f} ms")
 
         # Update Worker Telemetry Table
         results_by_chunk = {r.chunk_id: r for r in result.worker_results}
@@ -494,7 +494,7 @@ class DataParallelismPage(QWidget):
         for row, chunk in enumerate(result.chunks):
             r = results_by_chunk.get(chunk.chunk_id)
             pid_str = str(r.worker_pid) if r else "Pending"
-            time_str = f"{r.compute_time_s * 1000:.1f} ms ({r.input_ipc_latency_s * 1000:.2f}ms IPC)" if r else "--"
+            time_str = f"{r.compute_time_s * 1000:.1f} ms ({r.input_delivery_latency_s * 1000:.2f}ms delivery delay)" if r else "--"
 
             self.table_workers.setItem(row, 0, QTableWidgetItem(f"Chunk #{chunk.chunk_id}"))
             self.table_workers.setItem(row, 1, QTableWidgetItem(f"Worker {chunk.chunk_id % result.worker_count}"))
