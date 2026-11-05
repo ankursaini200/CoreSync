@@ -4,6 +4,36 @@ All notable changes to the CoreSync project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.0] - Phase 6: Task Parallelism Engine: Task Queues, DAG Dependencies, Worker Execution & Monitoring
+
+### Added
+- **Task Parallelism Engine (`engine/task_parallel/`)**:
+  - `Task`: Dataclass with robust state machine transitions (`PENDING`, `READY`, `QUEUED`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED`, `BLOCKED`). Enforces valid transitions and maintains execution timestamps.
+  - `TaskGraph`: Directed Acyclic Graph (DAG) manager providing cycle detection via Kahn's algorithm, topological ordering, prerequisite validation, dynamic unblocking of children (`on_task_completed`), failure cascading to descendants (`on_task_failed`), and deadlock detection.
+  - `TaskQueue`: Pluggable scheduling queue supporting **First-Come, First-Served (FIFO)**, **Priority Scheduling**, and **Shortest Job First (SJF)** based on task duration estimates.
+  - `operations.py`: Six genuine CPU-bound computational kernels:
+    1. Prime Number Sieve & Trial Division (`prime_calc`)
+    2. Dense Matrix Multiplication & Frobenius Norm (`matrix_mult`)
+    3. Simpson's Rule Numerical Integration (`numerical_integration`)
+    4. Sorting & Monotonicity Verification (`sorting`)
+    5. Fibonacci Fast Doubling Computation (`fibonacci`)
+    6. Multi-Pass Transcendental Data Transformation (`data_transform`)
+  - `worker.py`: Isolated spawned child process worker loop executing tasks without PySide6/Qt imports.
+  - `dispatcher.py`: `TaskDispatcher` tracking idle/busy workers and mapping active operating system PIDs with automatic hardware-based worker allocation heuristics.
+  - `verification.py`: `TaskVerifier` checking mathematical invariants (matrix norms, prime properties, sorted arrays, finite integrals).
+  - `result_collector.py`: `ResultCollector` aggregating execution logs, makespan ($T_{par}$), cumulative compute work ($T_{cpu}$), speedup ($S$), and worker utilization percentage.
+  - `executor.py`: `TaskParallelExecutor` orchestrating asynchronous DAG dispatch, retry policies up to `max_retries`, cooperative cancellation, and strict 4-stage worker cleanup (cooperative -> SIGTERM -> SIGKILL -> join) with zero orphan processes.
+  - `presets.py`: Five realistic preset DAG workflows: Diamond Pipeline, Heterogeneous Scientific Suite, Fan-Out/Fan-In Pipeline, Independent Concurrency Suite, and Fault Tolerance & Retry Test.
+- **Interactive Workstation GUI (`gui/task_parallelism.py` & `gui/components/dag_canvas.py`)**:
+  - `DAGCanvasWidget`: Custom `QPainter` widget dynamically visualizing DAG nodes, topological layers, directed Bezier connection arrows, and status color transitions (Green, Blue, Yellow, Dark, Red, Purple).
+  - Background `TaskParallelRunnerThread` coordinating execution without blocking Qt event loops.
+  - Real-time metrics grid for Total Tasks, Running Tasks, Completed Tasks, Failed/Blocked Tasks, Parallel Makespan, and Speedup.
+  - Worker process status badges reporting live PIDs and assigned tasks.
+  - Task telemetry table reporting ID, Name, Type, Priority, Status, Worker/PID, Duration, and Dependencies.
+- **Automated Test Suite Expansion (`tests/test_task_parallel.py`)**:
+  - 23 new comprehensive tests covering task models, invalid transitions, FIFO/Priority/SJF queues, topological sorting, cycle detection, self-dependencies, missing dependencies, all 6 kernels, verifications, concurrent execution, scientific pipeline, independent suite, retries, failure cascades, cooperative cancellation, worker Qt isolation, and GUI page preset switching.
+  - Total test suite now stands at **89 passing tests** (100% pass rate).
+
 ## [0.5.2] - Phase 5.2: Benchmark Metric Terminology Correction
 
 ### Changed
