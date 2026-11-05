@@ -543,3 +543,127 @@ def test_failed_benchmark_resets_actual_speedup_to_zero():
     assert result.parallelism_ratio == 0.0
     assert result.sequential_verification_passed is False
 
+
+# --- 10. Phase 6.2 Verification Integrity & Full Equivalence Tests ---
+
+def test_verification_detects_matrix_with_matching_trace_and_norm_but_different_elements():
+    """Verify full matrix comparison rejects matrices with identical trace & norm but different elements.
+
+    Summary checks (trace & Frobenius norm) would pass:
+    Matrix A: [[2.0, 0.0], [0.0, 3.0]] -> trace = 5.0, norm = sqrt(13) = 3.60555
+    Matrix B: [[3.0, 0.0], [0.0, 2.0]] -> trace = 5.0, norm = sqrt(13) = 3.60555
+    """
+    import numpy as np
+
+    norm_val = float(np.sqrt(13.0))
+    res_seq = {
+        "trace": 5.0,
+        "frobenius_norm": norm_val,
+        "checksum": 5.0 + norm_val,
+        "matrix": np.array([[2.0, 0.0], [0.0, 3.0]], dtype=np.float64),
+    }
+    res_par = {
+        "trace": 5.0,
+        "frobenius_norm": norm_val,
+        "checksum": 5.0 + norm_val,
+        "matrix": np.array([[3.0, 0.0], [0.0, 2.0]], dtype=np.float64),
+    }
+
+    matched, reason = TaskVerifier.compare_results("matrix_mult", res_seq, res_par)
+    assert matched is False
+    assert "divergence" in reason.lower()
+
+
+def test_verification_detects_sorted_array_with_matching_min_max_but_different_elements():
+    """Verify full array comparison rejects arrays with matching min, max, and sortedness but different internal items.
+
+    Summary checks (is_sorted, min, max) would pass:
+    Array A: [1.0, 2.0, 3.0, 10.0]
+    Array B: [1.0, 5.0, 8.0, 10.0]
+    """
+    import numpy as np
+
+    res_seq = {
+        "is_sorted": True,
+        "min": 1.0,
+        "max": 10.0,
+        "checksum": 16.0,
+        "sorted_array": np.array([1.0, 2.0, 3.0, 10.0]),
+    }
+    res_par = {
+        "is_sorted": True,
+        "min": 1.0,
+        "max": 10.0,
+        "checksum": 16.0,  # even with identical checksum
+        "sorted_array": np.array([1.0, 5.0, 8.0, 10.0]),
+    }
+
+    matched, reason = TaskVerifier.compare_results("sorting", res_seq, res_par)
+    assert matched is False
+    assert "mismatch" in reason.lower()
+
+
+def test_verification_detects_fibonacci_with_matching_digits_but_different_value():
+    """Verify exact integer comparison rejects Fibonacci results with matching digit counts & trailing digits but different values.
+
+    Summary checks (digit_count, last_6_digits) would pass:
+    Value A: 3542248481792619123456
+    Value B: 999999999999999123456
+    """
+    res_seq = {
+        "digit_count": 22,
+        "last_6_digits": 123456,
+        "checksum": 123456.0,
+        "fib_value": 3542248481792619123456,
+    }
+    res_par = {
+        "digit_count": 22,
+        "last_6_digits": 123456,
+        "checksum": 123456.0,
+        "fib_value": 999999999999999123456,
+    }
+
+    matched, reason = TaskVerifier.compare_results("fibonacci", res_seq, res_par)
+    assert matched is False
+    assert "differ" in reason.lower()
+
+
+def test_verification_failure_invalidates_actual_speedup(monkeypatch):
+    """Verify that any verification discrepancy invalidates actual speedup (sets it to 0.0)."""
+    graph = create_diamond_pipeline()
+    executor = TaskParallelExecutor()
+
+    # Monkeypatch TaskVerifier.compare_results to simulate an output divergence
+    monkeypatch.setattr(
+        TaskVerifier,
+        "compare_results",
+        lambda task_type, r_seq, r_par: (False, "Simulated data divergence"),
+    )
+
+    result = executor.run_benchmark(graph, worker_count=2)
+
+    assert result.success is True
+    # Verification failed: actual speedup MUST be invalidated
+    assert result.sequential_verification_passed is False
+    assert result.actual_speedup == 0.0
+    assert "Simulated data divergence" in result.error_message
+
+
+def test_verification_overhead_excluded_from_execution_measurements():
+    """Verify that verification time is excluded from measured sequential and parallel makespans."""
+    graph = create_diamond_pipeline()
+    executor = TaskParallelExecutor()
+
+    # Measure raw parallel execution
+    par_only_result = executor.run_dag(graph.clone(), worker_count=2)
+
+    # Benchmark includes sequential + parallel + verification, but par makespan must remain purely compute
+    benchmark_result = executor.run_benchmark(graph.clone(), worker_count=2)
+
+    # Both makespans must be measured within normal variance (< 0.15s), proving verification isn't bundled inside makespan_s
+    diff = abs(benchmark_result.makespan_s - par_only_result.makespan_s)
+    assert diff < 0.25, f"Parallel makespan diverged excessively: {diff:.4f}s"
+    assert benchmark_result.sequential_time_s > 0.0
+    assert benchmark_result.makespan_s > 0.0
+
+

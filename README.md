@@ -121,7 +121,25 @@ CoreSync strictly separates measured execution intervals from derived estimates 
 
 ---
 
-## 4. Setup & Installation
+## 5. Output Verification Integrity & Equivalence Strategies
+
+To guarantee scientific rigor, CoreSync distinguishes **Full Output Equivalence Verification** from **Summary / Invariant-Based Verification**:
+
+| Workload Kernel | Verification Level | Verification Strategy | Discrepancies Caught |
+| :--- | :--- | :--- | :--- |
+| **`matrix_mult`** | **Full Output Equivalence** | Compares entire resulting matrices element-by-element via `np.allclose(mat_seq, mat_par, rtol=1e-5, atol=1e-8)`. Trace and Frobenius norm are retained as supplementary checks. | Catches matrices with matching trace/norm but altered internal elements. |
+| **`sorting`** | **Full Output Equivalence** | Compares full sorted arrays element-by-element via `np.allclose(arr_seq, arr_par)` and checks monotonic ascending order (`np.all(arr[:-1] <= arr[1:])`). | Catches sorted arrays with identical min/max bounds but differing internal items. |
+| **`fibonacci`** | **Full Output Equivalence** | Compares the complete exact big-integer value (`seq["fib_value"] == par["fib_value"]`). Digit count and trailing digits are retained as supplementary checks. | Catches arbitrary integers that share digit lengths and trailing digits. |
+| **`prime_calc`** | **Full Output Equivalence** | Compares the complete sequence of computed prime integers (`seq["primes"] == par["primes"]`), with count and largest prime as supplementary checks. | Catches missing or erroneous primes in range. |
+| **`data_transform`** | **Full Output Equivalence** | Compares the complete transformed floating-point vector element-by-element via `np.allclose()`. Mean and std are retained as supplementary checks. | Catches localized vector deviations that preserve summary moments. |
+| **`numerical_integration`** | **Tolerance-Bounded Scalar** | Evaluates $|I_{\text{seq}} - I_{\text{par}}| \le \text{atol} + \text{rtol} \cdot |I_{\text{seq}}|$. As a mathematical reduction over a continuous function, verification validates the scalar integral value. | Catches Simpson quadrature calculation errors. |
+
+> [!IMPORTANT]
+> **Measurement Isolation**: Verification logic is executed **after** both sequential and parallel makespan intervals have concluded. Verification overhead is strictly excluded from reported execution timings. Any verification divergence invalidates the benchmark and resets `actual_speedup` to `0.0`.
+
+---
+
+## 6. Setup & Installation
 
 ### Arch Linux / Linux (PEP 668 Compliant)
 
@@ -158,7 +176,7 @@ CoreSync strictly separates measured execution intervals from derived estimates 
 
 ---
 
-## 5. Development Status
+## 7. Development Status
 
 - [x] **Phase 1**: Architecture, Requirements, and Phased Roadmap.
 - [x] **Phase 2**: Environment Setup, Project Skeleton, and Initial Entry Point.
@@ -168,6 +186,7 @@ CoreSync strictly separates measured execution intervals from derived estimates 
 - [x] **Phase 5.1/5.2**: IPC & Timing Breakdown Audit, Delivery Latency & Overhead Correction.
 - [x] **Phase 6**: Task Parallelism Engine, DAG Dependencies, Pluggable Queues & Isolated Workers.
 - [x] **Phase 6.1**: Task Parallelism Benchmark Metric Audit (Actual Speedup, Parallelism Ratio, Worker Utilization).
+- [x] **Phase 6.2**: Task Parallelism Verification Integrity Audit (Full Equivalence vs Invariant Verification).
 - [ ] **Phase 7**: Process Lifecycle Management & CPU Affinity Binding.
 - [ ] **Phase 8**: Educational Scheduling Simulation (FCFS, Priority, Round Robin).
 - [ ] **Phase 9**: Performance Analytics & Amdahl's Law Visualizer.

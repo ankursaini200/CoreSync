@@ -63,6 +63,7 @@ def _kernel_prime_calc(params: Dict[str, Any]) -> Dict[str, Any]:
         "largest_prime": largest,
         "checksum": checksum,
         "range": [start, limit],
+        "primes": primes,  # Complete prime list for full equivalence verification
     }
 
 
@@ -87,6 +88,7 @@ def _kernel_matrix_mult(params: Dict[str, Any]) -> Dict[str, Any]:
         "frobenius_norm": frobenius_norm,
         "checksum": frobenius_norm + trace,
         "mean": mean_val,
+        "matrix": C,  # Complete output matrix for element-by-element equivalence verification
     }
 
 
@@ -144,6 +146,7 @@ def _kernel_sorting(params: Dict[str, Any]) -> Dict[str, Any]:
         "max": max_val,
         "median": median_val,
         "checksum": min_val + max_val + median_val,
+        "sorted_array": sorted_arr,  # Complete sorted array for element-by-element equivalence verification
     }
 
 
@@ -171,6 +174,7 @@ def _kernel_fibonacci(params: Dict[str, Any]) -> Dict[str, Any]:
         "digit_count": digit_count,
         "last_6_digits": last_6_digits,
         "checksum": float(last_6_digits),
+        "fib_value": fib_n,  # Complete exact integer value for full mathematical equivalence
     }
 
 
@@ -200,4 +204,5 @@ def _kernel_data_transform(params: Dict[str, Any]) -> Dict[str, Any]:
         "mean": mean_val,
         "std": std_val,
         "checksum": checksum,
+        "output_array": result,  # Complete transformed array for full array verification
     }

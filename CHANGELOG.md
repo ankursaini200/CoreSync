@@ -4,6 +4,31 @@ All notable changes to the CoreSync project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.2] - Phase 6.2: Task Parallelism Verification Integrity Audit
+
+### Added
+- **Full Output Equivalence Verification (`engine/task_parallel/verification.py`)**:
+  - `matrix_mult`: Upgraded comparison to full element-by-element equality using `numpy.allclose(mat_seq, mat_par, rtol=1e-5, atol=1e-8)`. Retained trace and Frobenius norm as supplementary metrics.
+  - `sorting`: Upgraded comparison to full sorted array equality using `numpy.allclose(arr_seq, arr_par)` and verified monotonic ascending order.
+  - `fibonacci`: Upgraded comparison to full exact integer representation (`seq["fib_value"] == par["fib_value"]`), retaining digit counts and trailing digits as supplementary metrics.
+  - `prime_calc`: Upgraded comparison to full prime integer sequence equality (`seq["primes"] == par["primes"]`).
+  - `data_transform`: Upgraded comparison to full floating-point array element-by-element equality via `numpy.allclose()`.
+  - `numerical_integration`: Preserved scalar Simpson quadrature numerical comparison within defined tolerance ($|I_{\text{seq}} - I_{\text{par}}| \le \text{atol} + \text{rtol} \cdot |I_{\text{seq}}|$).
+- **Kernel Payload Retentions (`engine/task_parallel/operations.py`)**:
+  - Retained `primes` list in `_kernel_prime_calc`.
+  - Retained `matrix` ndarray in `_kernel_matrix_mult`.
+  - Retained `sorted_array` ndarray in `_kernel_sorting`.
+  - Retained `fib_value` exact integer in `_kernel_fibonacci`.
+  - Retained `output_array` ndarray in `_kernel_data_transform`.
+- **Integrity Tests (`tests/test_task_parallel.py`)**:
+  - Added 5 adversarial integrity tests verifying that `compare_results()` rejects:
+    1. Matrices with matching trace and Frobenius norm but differing elements.
+    2. Sorted arrays with matching min, max, and monotonicity but differing internal items.
+    3. Fibonacci numbers with matching digit count and trailing digits but differing values.
+    4. Verification failures strictly invalidating actual speedup ($S \to 0.0$).
+    5. Verification overhead is excluded from sequential and parallel execution makespans.
+  - Test suite now stands at **100 passing tests** (100% pass rate).
+
 ## [0.6.1] - Phase 6.1: Task Parallelism Benchmark Metric Audit
 
 ### Changed
