@@ -108,7 +108,7 @@ CoreSync/
 
 - [x] **Phase 1**: Architecture, Requirements, and Phased Roadmap.
 - [x] **Phase 2**: Environment Setup, Project Skeleton, and Initial Entry Point.
-- [ ] **Phase 3**: Dark Workstation GUI Shell & Sidebar Navigation.
+- [x] **Phase 3**: Dark Workstation GUI Shell & Sidebar Navigation.
 - [ ] **Phase 4**: Hardware Detection & Live Per-Core CPU Monitor.
 - [ ] **Phase 5**: Data Parallelism Engine & Verification.
 - [ ] **Phase 6**: Task Parallelism Engine & DAG Scheduling.
