@@ -12,10 +12,12 @@ import time
 from typing import Callable, Dict, List, Optional
 
 from engine.task_parallel.dispatcher import TaskDispatcher
+from engine.task_parallel.operations import execute_task_kernel
 from engine.task_parallel.result_collector import ResultCollector, TaskDAGResult
 from engine.task_parallel.task import Task, TaskStatus
 from engine.task_parallel.task_graph import TaskGraph
 from engine.task_parallel.task_queue import SchedulingPolicy
+from engine.task_parallel.verification import TaskVerifier
 from engine.task_parallel.worker import (
     TaskExecutionResult,
     TaskParcel,
@@ -40,6 +42,157 @@ class TaskParallelExecutor:
         if self._active_stop_event:
             self._active_stop_event.set()
 
+    def run_sequential(
+        self,
+        graph: TaskGraph,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    ) -> TaskDAGResult:
+        """Execute all tasks in a TaskGraph sequentially in topological dependency order.
+
+        Provides a clean single-threaded baseline using identical input parameters
+        and respecting identical dependencies.
+        """
+        t_seq_start = time.perf_counter()
+        is_valid, err_msg = graph.validate()
+        if not is_valid:
+            raise ValueError(f"TaskGraph validation failed: {err_msg}")
+
+        order = graph.get_topological_order()
+        collector = ResultCollector(worker_count=1)
+        graph.initialize_statuses()
+
+        for idx, task_id in enumerate(order):
+            task = graph.tasks[task_id]
+            # Ensure prerequisites completed
+            for p_id in graph.dependencies.get(task_id, set()):
+                if graph.tasks[p_id].status != TaskStatus.COMPLETED:
+                    err = f"Prerequisite task '{p_id}' is not completed."
+                    task.transition_to(TaskStatus.FAILED, reason=err)
+                    graph.on_task_failed(task_id, err)
+                    break
+
+            if task.status == TaskStatus.FAILED:
+                continue
+
+            task.transition_to(TaskStatus.READY)
+            task.transition_to(TaskStatus.QUEUED)
+            task.transition_to(TaskStatus.RUNNING)
+            task.assigned_worker_id = 0
+            task.worker_pid = os.getpid()
+
+            t_task_start = time.perf_counter()
+            try:
+                out = execute_task_kernel(task.task_type, task.params)
+                t_comp = time.perf_counter() - t_task_start
+                task.result = out
+                task.duration_s = t_comp
+                task.transition_to(TaskStatus.COMPLETED)
+                collector.record_result(task, TaskExecutionResult(
+                    task_id=task.task_id,
+                    worker_id=0,
+                    worker_pid=os.getpid(),
+                    success=True,
+                    data=out,
+                    compute_time_s=t_comp,
+                ))
+                graph.on_task_completed(task_id)
+            except Exception as e:
+                t_comp = time.perf_counter() - t_task_start
+                err = f"{type(e).__name__}: {str(e)}"
+                task.duration_s = t_comp
+                task.transition_to(TaskStatus.FAILED, reason=err)
+                collector.record_result(task, TaskExecutionResult(
+                    task_id=task.task_id,
+                    worker_id=0,
+                    worker_pid=os.getpid(),
+                    success=False,
+                    data=None,
+                    compute_time_s=t_comp,
+                    error_message=err,
+                ))
+                graph.on_task_failed(task_id, err)
+
+            if progress_callback:
+                progress_callback(idx + 1, len(order), f"Sequential task {task.name} finished")
+
+        t_seq_total = time.perf_counter() - t_seq_start
+        return collector.synthesize_dag_result(
+            graph.tasks,
+            makespan_s=t_seq_total,
+            sequential_time_s=t_seq_total,
+            sequential_verification_passed=True,
+        )
+
+    def run_benchmark(
+        self,
+        graph: TaskGraph,
+        worker_count: int = 4,
+        policy: SchedulingPolicy = SchedulingPolicy.FIFO,
+        task_status_callback: Optional[Callable[[Task, TaskStatus, Optional[str]], None]] = None,
+        worker_status_callback: Optional[Callable[[int, int, str], None]] = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+        cancel_event: Optional[mp.Event] = None,
+    ) -> TaskDAGResult:
+        """Run full end-to-end benchmark: sequential baseline, parallel run, and correctness verification.
+
+        Calculates:
+            - Actual Speedup: S = T_seq / T_par
+            - Parallelism Ratio: P = Cumulative Worker Compute / T_par
+            - Worker Utilization: U = Cumulative Worker Compute / (Worker Count * T_par)
+        """
+        # 1. Execute sequential baseline on exact replica
+        if progress_callback:
+            progress_callback(0, len(graph.tasks), "Executing single-threaded sequential baseline...")
+        seq_graph = graph.clone()
+        seq_result = self.run_sequential(seq_graph)
+
+        if (cancel_event and cancel_event.is_set()) or self._cancel_requested:
+            return seq_result
+
+        # 2. Execute parallel DAG run
+        if progress_callback:
+            progress_callback(0, len(graph.tasks), f"Executing parallel DAG on {worker_count} workers...")
+        par_result = self.run_dag(
+            graph=graph,
+            worker_count=worker_count,
+            policy=policy,
+            task_status_callback=task_status_callback,
+            worker_status_callback=worker_status_callback,
+            progress_callback=progress_callback,
+            cancel_event=cancel_event,
+            sequential_time_s=seq_result.makespan_s,
+        )
+
+        # 3. Output correctness comparison between sequential and parallel executions
+        all_matched = True
+        discrepancies = []
+        if seq_result.success and par_result.success:
+            for t_id, par_task in graph.tasks.items():
+                seq_task = seq_graph.tasks.get(t_id)
+                if not seq_task or seq_task.result is None or par_task.result is None:
+                    continue
+                matched, reason = TaskVerifier.compare_results(
+                    par_task.task_type,
+                    seq_task.result,
+                    par_task.result,
+                )
+                if not matched:
+                    all_matched = False
+                    discrepancies.append(f"Task '{t_id}': {reason}")
+                    logger.warning(f"Verification divergence on task '{t_id}': {reason}")
+
+        if all_matched and seq_result.success and par_result.success:
+            par_result.sequential_verification_passed = True
+            par_result.sequential_time_s = seq_result.makespan_s
+            par_result.actual_speedup = (seq_result.makespan_s / par_result.makespan_s) if par_result.makespan_s > 0 else 0.0
+        else:
+            par_result.sequential_verification_passed = False
+            par_result.actual_speedup = 0.0
+            if discrepancies:
+                par_result.error_message = "; ".join(discrepancies)
+
+        return par_result
+
     def run_dag(
         self,
         graph: TaskGraph,
@@ -49,6 +202,8 @@ class TaskParallelExecutor:
         worker_status_callback: Optional[Callable[[int, int, str], None]] = None,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         cancel_event: Optional[mp.Event] = None,
+        sequential_time_s: float = 0.0,
+        sequential_verification_passed: bool = False,
     ) -> TaskDAGResult:
         """Execute a validated TaskGraph to completion using a pool of spawn worker processes.
 
@@ -266,7 +421,12 @@ class TaskParallelExecutor:
                     pass
 
             t_dag_total = time.perf_counter() - t_dag_start
-            return collector.synthesize_dag_result(graph.tasks, makespan_s=t_dag_total)
+            return collector.synthesize_dag_result(
+                graph.tasks,
+                makespan_s=t_dag_total,
+                sequential_time_s=sequential_time_s,
+                sequential_verification_passed=sequential_verification_passed,
+            )
 
         finally:
             # 7. Guaranteed 4-stage worker cleanup (prevents any zombie or orphan processes)

@@ -208,6 +208,23 @@ class TaskGraph:
         """Return True if all tasks in the graph have reached a terminal state."""
         return all(t.is_terminal() for t in self.tasks.values())
 
+    def clone(self) -> "TaskGraph":
+        """Create an exact duplicate of this TaskGraph with fresh task lifecycle states."""
+        new_graph = TaskGraph()
+        for t_id, task in self.tasks.items():
+            new_task = Task(
+                task_id=task.task_id,
+                name=task.name,
+                task_type=task.task_type,
+                params=dict(task.params),
+                priority=task.priority,
+                dependencies=list(task.dependencies),
+                estimated_duration_s=task.estimated_duration_s,
+                max_retries=task.max_retries,
+            )
+            new_graph.add_task(new_task)
+        return new_graph
+
     def get_statistics(self) -> Dict[str, int]:
         """Return summary count of tasks in each status."""
         stats = {s.value: 0 for s in TaskStatus}

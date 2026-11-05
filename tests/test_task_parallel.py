@@ -434,3 +434,112 @@ def test_task_parallelism_page_preset_switching(qapp):
     assert page.table_tasks.rowCount() == 6
     assert page.card_total.value_label.text() == "6"
     page.shutdown()
+
+
+# --- 9. Phase 6.1 Benchmark Metric Audit & Sequential Baseline Tests ---
+
+def test_task_graph_clone():
+    """Verify TaskGraph.clone() generates an independent identical replica."""
+    graph = create_diamond_pipeline()
+    cloned = graph.clone()
+
+    assert len(cloned.tasks) == len(graph.tasks)
+    assert cloned.get_topological_order() == graph.get_topological_order()
+
+    # Modifying task in cloned must not affect original
+    cloned.tasks["t1_init"].status = TaskStatus.RUNNING
+    assert graph.tasks["t1_init"].status == TaskStatus.PENDING
+
+
+def test_sequential_baseline_execution():
+    """Verify sequential execution runs all tasks strictly in dependency order on 1 worker."""
+    graph = create_diamond_pipeline()
+    executor = TaskParallelExecutor()
+
+    result = executor.run_sequential(graph)
+
+    assert result.success is True
+    assert result.completed_tasks == 4
+    assert result.worker_count == 1
+    assert result.sequential_time_s > 0.0
+    assert result.makespan_s == result.sequential_time_s
+    assert result.sequential_verification_passed is True
+
+
+def test_run_benchmark_actual_speedup_and_correctness():
+    """Verify end-to-end benchmark executes sequential baseline, parallel run, and compares correctness."""
+    graph = create_diamond_pipeline()
+    executor = TaskParallelExecutor()
+
+    result = executor.run_benchmark(graph, worker_count=2, policy=SchedulingPolicy.FIFO)
+
+    assert result.success is True
+    assert result.sequential_verification_passed is True
+    assert result.sequential_time_s > 0.0
+    assert result.makespan_s > 0.0
+    assert result.cumulative_compute_s > 0.0
+
+    # 1. Actual Speedup S = T_seq / T_par
+    expected_s = result.sequential_time_s / result.makespan_s
+    assert abs(result.actual_speedup - expected_s) < 1e-4
+
+    # 2. Parallelism Ratio P = T_comp_sum / T_par
+    expected_p = result.cumulative_compute_s / result.makespan_s
+    assert abs(result.parallelism_ratio - expected_p) < 1e-4
+
+    # 3. Worker Utilization U = T_comp_sum / (W * T_par) * 100%
+    expected_u = (result.cumulative_compute_s / (result.worker_count * result.makespan_s)) * 100.0
+    assert abs(result.worker_utilization_pct - min(100.0, max(0.0, expected_u))) < 1e-4
+    assert 0.0 <= result.worker_utilization_pct <= 100.0
+
+
+def test_worker_utilization_bounds_and_idle_time():
+    """Verify worker utilization math is strictly bounded between 0.0% and 100.0%."""
+    from engine.task_parallel.result_collector import ResultCollector
+    from engine.task_parallel.worker import TaskExecutionResult
+
+    collector = ResultCollector(worker_count=4)
+    tasks = {
+        "t1": Task("t1", "T1", "sorting", status=TaskStatus.COMPLETED),
+        "t2": Task("t2", "T2", "sorting", status=TaskStatus.COMPLETED),
+    }
+
+    # Normal case: 2 tasks of 0.2s on 4 workers over 0.5s makespan (0.4 / (4 * 0.5) = 20%)
+    collector.task_results["t1"] = TaskExecutionResult("t1", 0, 100, True, {}, 0.2)
+    collector.task_results["t2"] = TaskExecutionResult("t2", 1, 101, True, {}, 0.2)
+    res = collector.synthesize_dag_result(tasks, makespan_s=0.5, sequential_time_s=0.4)
+
+    assert abs(res.worker_utilization_pct - 20.0) < 1e-4
+    assert res.parallelism_ratio == 0.8
+    assert res.actual_speedup == 0.8
+
+    # Over-capacity clamping test (synthetic: compute time > capacity)
+    collector.task_results["t1"] = TaskExecutionResult("t1", 0, 100, True, {}, 5.0)
+    res_clamped = collector.synthesize_dag_result(tasks, makespan_s=0.5, sequential_time_s=1.0)
+    assert res_clamped.worker_utilization_pct == 100.0
+
+
+def test_zero_duration_and_invalid_measurements():
+    """Verify zero-duration and zero-worker edge cases do not trigger division-by-zero."""
+    from engine.task_parallel.result_collector import ResultCollector
+
+    collector = ResultCollector(worker_count=0)
+    res = collector.synthesize_dag_result({}, makespan_s=0.0, sequential_time_s=0.0)
+
+    assert res.actual_speedup == 0.0
+    assert res.parallelism_ratio == 0.0
+    assert res.worker_utilization_pct == 0.0
+
+
+def test_failed_benchmark_resets_actual_speedup_to_zero():
+    """Verify failed or cancelled runs never report a valid speedup."""
+    graph = create_fault_tolerant_test_dag()
+    executor = TaskParallelExecutor()
+
+    result = executor.run_benchmark(graph, worker_count=2)
+
+    assert result.success is False
+    assert result.actual_speedup == 0.0
+    assert result.parallelism_ratio == 0.0
+    assert result.sequential_verification_passed is False
+

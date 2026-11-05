@@ -14,21 +14,38 @@ from engine.task_parallel.worker import TaskExecutionResult
 
 @dataclass
 class TaskDAGResult:
-    """Comprehensive outcome of executing a complete Task Parallelism DAG."""
+    """Comprehensive outcome of executing a complete Task Parallelism DAG.
+
+    Metrics Decomposition:
+        - sequential_time_s: Wall-clock execution time of the sequential baseline (T_seq).
+        - makespan_s: End-to-end wall-clock parallel DAG duration (T_par).
+        - cumulative_compute_s: Sum of pure CPU computation times across all tasks (T_comp_sum).
+        - actual_speedup: S = T_seq / T_par (Actual Speedup vs single-threaded baseline).
+        - parallelism_ratio: P = T_comp_sum / T_par (Concurrency density).
+        - worker_utilization_pct: U = (T_comp_sum / (worker_count * T_par)) * 100% (bounded 0%-100%).
+    """
     success: bool
     total_tasks: int
     completed_tasks: int
     failed_tasks: int
     cancelled_tasks: int
     worker_count: int
-    makespan_s: float               # End-to-end wall-clock parallel duration
-    cumulative_compute_s: float     # Sum of pure computation times across all tasks
-    speedup: float                  # cumulative_compute_s / makespan_s
-    worker_utilization_pct: float   # (cumulative_compute_s / (makespan_s * worker_count)) * 100%
+    makespan_s: float                      # End-to-end wall-clock parallel duration (T_par)
+    cumulative_compute_s: float            # Sum of pure computation times across all tasks (T_comp_sum)
+    sequential_time_s: float = 0.0         # Wall-clock sequential baseline duration (T_seq)
+    actual_speedup: float = 0.0            # S = T_seq / T_par (Actual Speedup)
+    parallelism_ratio: float = 0.0         # P = T_comp_sum / T_par (Parallelism Ratio)
+    worker_utilization_pct: float = 0.0    # U = (T_comp_sum / (T_par * worker_count)) * 100%
+    sequential_verification_passed: bool = False
     task_results: Dict[str, TaskExecutionResult] = field(default_factory=dict)
     verifications: Dict[str, TaskVerificationResult] = field(default_factory=dict)
     execution_log: List[Dict[str, Any]] = field(default_factory=list)
     error_message: Optional[str] = None
+
+    @property
+    def speedup(self) -> float:
+        """Backwards-compatible alias for actual_speedup (or parallelism_ratio if sequential baseline was not measured)."""
+        return self.actual_speedup if self.actual_speedup > 0.0 else self.parallelism_ratio
 
 
 class ResultCollector:
@@ -89,6 +106,8 @@ class ResultCollector:
         self,
         tasks: Dict[str, Task],
         makespan_s: float,
+        sequential_time_s: float = 0.0,
+        sequential_verification_passed: bool = False,
         overall_error: Optional[str] = None,
     ) -> TaskDAGResult:
         """Synthesize final metrics across the entire DAG."""
@@ -96,20 +115,31 @@ class ResultCollector:
         completed = sum(1 for t in tasks.values() if t.status == TaskStatus.COMPLETED)
         failed = sum(1 for t in tasks.values() if t.status == TaskStatus.FAILED)
         cancelled = sum(1 for t in tasks.values() if t.status == TaskStatus.CANCELLED)
+        overall_success = (failed == 0 and cancelled == 0 and completed == total)
 
         # Cumulative compute time (sum of actual worker execution time)
         cumulative_compute = sum(
             r.compute_time_s for r in self.task_results.values() if r.success
         )
 
-        # Speedup S = T_seq / T_par
-        speedup = (cumulative_compute / makespan_s) if makespan_s > 0 else 0.0
+        # 1. Parallelism Ratio P = Cumulative Worker Compute Time / Parallel Makespan
+        parallelism_ratio = (cumulative_compute / makespan_s) if (makespan_s > 0 and overall_success) else 0.0
 
-        # Worker utilization: ratio of active compute time to total available worker time
+        # 2. Worker Utilization U = Cumulative Worker Busy Time / (Worker Count * Parallel Makespan)
+        # Strictly bounded between 0.0% and 100.0%
         denom = (makespan_s * self.worker_count)
-        utilization = (cumulative_compute / denom * 100.0) if denom > 0 else 0.0
+        if denom > 0 and overall_success:
+            raw_util = (cumulative_compute / denom) * 100.0
+            worker_utilization_pct = min(100.0, max(0.0, raw_util))
+        else:
+            worker_utilization_pct = 0.0
 
-        overall_success = (failed == 0 and cancelled == 0 and completed == total)
+        # 3. Actual Speedup S = Sequential Baseline Time / Parallel Makespan
+        # Reported only when both sequential and parallel runs succeed and verification passes
+        if overall_success and sequential_time_s > 0 and makespan_s > 0:
+            actual_speedup = sequential_time_s / makespan_s
+        else:
+            actual_speedup = 0.0
 
         return TaskDAGResult(
             success=overall_success,
@@ -120,8 +150,11 @@ class ResultCollector:
             worker_count=self.worker_count,
             makespan_s=makespan_s,
             cumulative_compute_s=cumulative_compute,
-            speedup=speedup,
-            worker_utilization_pct=min(100.0, utilization),
+            sequential_time_s=sequential_time_s,
+            actual_speedup=actual_speedup,
+            parallelism_ratio=parallelism_ratio,
+            worker_utilization_pct=worker_utilization_pct,
+            sequential_verification_passed=sequential_verification_passed,
             task_results=dict(self.task_results),
             verifications=dict(self.verifications),
             execution_log=list(self.execution_log),

@@ -182,12 +182,17 @@ class TaskParallelismPage(QWidget):
         grid.addWidget(lbl_workers, 1, 2)
         grid.addWidget(self.spin_workers, 1, 3)
 
-        # Row 3: Host hardware note
+        # Row 3: Sequential Baseline Checkbox
+        self.check_benchmark = QCheckBox("Measure Sequential Baseline for Actual Speedup (S = T_seq / T_par)")
+        self.check_benchmark.setChecked(True)
+        grid.addWidget(self.check_benchmark, 2, 0, 1, 4)
+
+        # Row 4: Host hardware note
         self.lbl_hw_info = QLabel(
             f"Detected Host: {self.summary.cpu_model} ({self.summary.physical_cores}P / {self.summary.logical_cores}L Cores)"
         )
         self.lbl_hw_info.setStyleSheet("color: #58a6ff; font-size: 11px; font-weight: 600;")
-        grid.addWidget(self.lbl_hw_info, 2, 0, 1, 4)
+        grid.addWidget(self.lbl_hw_info, 3, 0, 1, 4)
 
         layout.addLayout(grid)
 
@@ -195,7 +200,7 @@ class TaskParallelismPage(QWidget):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(10)
 
-        self.btn_run = QPushButton("Execute DAG Workload")
+        self.btn_run = QPushButton("Execute DAG Benchmark")
         self.btn_run.setProperty("class", "btn-primary")
         self.btn_run.clicked.connect(self._on_start_execution)
         btn_layout.addWidget(self.btn_run)
@@ -222,7 +227,7 @@ class TaskParallelismPage(QWidget):
         self.progress_bar.setTextVisible(False)
         layout.addWidget(self.progress_bar)
 
-        self.lbl_progress_status = QLabel("Ready. Select a DAG preset and click Execute DAG Workload.")
+        self.lbl_progress_status = QLabel("Ready. Select a DAG preset and click Execute DAG Benchmark.")
         self.lbl_progress_status.setStyleSheet("color: #8b949e; font-size: 11px;")
         layout.addWidget(self.lbl_progress_status)
 
@@ -232,6 +237,7 @@ class TaskParallelismPage(QWidget):
         grid = QGridLayout()
         grid.setSpacing(14)
 
+        # Row 0: Counts
         self.card_total = MetricCard(
             title="Total Tasks",
             value="0",
@@ -268,23 +274,65 @@ class TaskParallelismPage(QWidget):
         )
         grid.addWidget(self.card_failed, 0, 3)
 
-        self.card_makespan = MetricCard(
-            title="Parallel Makespan (T_par)",
-            value="-- ms",
-            subtitle="DAG wall-clock duration",
-            status_text="Awaiting Run",
-            status_theme="neutral",
-        )
-        grid.addWidget(self.card_makespan, 1, 0, 1, 2)
-
-        self.card_speedup = MetricCard(
-            title="Task Speedup & Efficiency",
+        # Row 1: Speedup, Parallelism Ratio, Worker Utilization
+        self.card_actual_speedup = MetricCard(
+            title="Actual Speedup (S)",
             value="-- x",
-            subtitle="T_sum / T_par across workers",
+            subtitle="T_seq / T_par (vs sequential baseline)",
             status_text="Pending",
             status_theme="neutral",
         )
-        grid.addWidget(self.card_speedup, 1, 2, 1, 2)
+        grid.addWidget(self.card_actual_speedup, 1, 0, 1, 2)
+
+        self.card_parallelism_ratio = MetricCard(
+            title="Parallelism Ratio (P)",
+            value="-- x",
+            subtitle="Cumulative Compute / Makespan",
+            status_text="Pending",
+            status_theme="neutral",
+        )
+        grid.addWidget(self.card_parallelism_ratio, 1, 2)
+
+        self.card_worker_utilization = MetricCard(
+            title="Worker Utilization (U)",
+            value="-- %",
+            subtitle="Busy Time / Total Capacity (0-100%)",
+            status_text="Pending",
+            status_theme="neutral",
+        )
+        grid.addWidget(self.card_worker_utilization, 1, 3)
+
+        # Row 2: Timing Decomposition
+        self.card_seq_time = MetricCard(
+            title="Sequential Baseline (T_seq)",
+            value="-- ms",
+            subtitle="Single-threaded baseline duration",
+            status_text="Baseline",
+            status_theme="neutral",
+        )
+        grid.addWidget(self.card_seq_time, 2, 0, 1, 2)
+
+        self.card_par_makespan = MetricCard(
+            title="Parallel Makespan (T_par)",
+            value="-- ms",
+            subtitle="Wall-clock parallel DAG duration",
+            status_text="Parallel",
+            status_theme="neutral",
+        )
+        grid.addWidget(self.card_par_makespan, 2, 2)
+
+        self.card_cumulative_compute = MetricCard(
+            title="Cumulative Work (T_cpu)",
+            value="-- ms",
+            subtitle="Sum of compute times across workers",
+            status_text="Total Work",
+            status_theme="neutral",
+        )
+        grid.addWidget(self.card_cumulative_compute, 2, 3)
+
+        # Backwards compatible aliases
+        self.card_makespan = self.card_par_makespan
+        self.card_speedup = self.card_actual_speedup
 
         return grid
 
@@ -451,7 +499,8 @@ class TaskParallelismPage(QWidget):
             self.worker_badges_layout.addWidget(badge)
             self.worker_badges[w_id] = badge
 
-        self.runner_thread.configure(self.current_graph, worker_count, policy)
+        run_benchmark = self.check_benchmark.isChecked()
+        self.runner_thread.configure(self.current_graph, worker_count, policy, run_benchmark=run_benchmark)
         self.runner_thread.start()
 
     def _on_cancel_clicked(self) -> None:
@@ -463,8 +512,12 @@ class TaskParallelismPage(QWidget):
         self._load_preset(preset_name)
         self.progress_bar.setValue(0)
         self.lbl_progress_status.setText("Pipeline reset. Ready to execute.")
-        self.card_makespan.set_value("-- ms")
-        self.card_speedup.set_value("-- x")
+        self.card_actual_speedup.set_value("-- x")
+        self.card_parallelism_ratio.set_value("-- x")
+        self.card_worker_utilization.set_value("-- %")
+        self.card_seq_time.set_value("-- ms")
+        self.card_par_makespan.set_value("-- ms")
+        self.card_cumulative_compute.set_value("-- ms")
 
     @Slot(str, str, str, str, str)
     def _on_task_status_changed(self, task_id: str, status: str, error: str, pid_str: str, duration_str: str) -> None:
@@ -508,16 +561,42 @@ class TaskParallelismPage(QWidget):
         status_label = "DAG Execution Succeeded" if result.success else "DAG Finished with Failures"
         self.badge_status.set_status(status_label, theme)
 
-        self.card_makespan.set_value(f"{result.makespan_s * 1000:.1f} ms")
-        self.card_makespan.set_status(f"Makespan ({result.worker_count} Workers)", "success")
+        # Actual Speedup S = T_seq / T_par
+        if result.actual_speedup > 0:
+            self.card_actual_speedup.set_value(f"{result.actual_speedup:.2f} x")
+            self.card_actual_speedup.set_status(
+                "Speedup Achieved" if result.actual_speedup >= 1.0 else "Overhead Bound",
+                "success" if result.actual_speedup >= 1.0 else "warning",
+            )
+        else:
+            self.card_actual_speedup.set_value("-- x")
+            self.card_actual_speedup.set_status("No Baseline", "neutral")
 
-        self.card_speedup.set_value(f"{result.speedup:.2f} x")
-        self.card_speedup.set_status(f"{result.worker_utilization_pct:.1f}% Utilization", "info")
+        # Parallelism Ratio P = T_comp_sum / T_par
+        self.card_parallelism_ratio.set_value(f"{result.parallelism_ratio:.2f} x")
+        self.card_parallelism_ratio.set_status(f"{result.parallelism_ratio:.1f} Active Workers", "info")
+
+        # Worker Utilization U = T_comp_sum / (W * T_par)
+        self.card_worker_utilization.set_value(f"{result.worker_utilization_pct:.1f} %")
+        self.card_worker_utilization.set_status(f"Across {result.worker_count} Workers", "success" if result.worker_utilization_pct > 50 else "neutral")
+
+        # Timings
+        if result.sequential_time_s > 0:
+            self.card_seq_time.set_value(f"{result.sequential_time_s * 1000:.1f} ms")
+            self.card_seq_time.set_status("Verified Match" if result.sequential_verification_passed else "Baseline", "success" if result.sequential_verification_passed else "neutral")
+        else:
+            self.card_seq_time.set_value("-- ms")
+            self.card_seq_time.set_status("Not Run", "neutral")
+
+        self.card_par_makespan.set_value(f"{result.makespan_s * 1000:.1f} ms")
+        self.card_par_makespan.set_status(f"Parallel Makespan", "info")
+
+        self.card_cumulative_compute.set_value(f"{result.cumulative_compute_s * 1000:.1f} ms")
+        self.card_cumulative_compute.set_status("Cumulative Work", "neutral")
 
         self.lbl_progress_status.setText(
-            f"DAG execution completed in {result.makespan_s * 1000:.1f} ms. "
-            f"Tasks: {result.completed_tasks}/{result.total_tasks} completed. "
-            f"Cumulative Work: {result.cumulative_compute_s * 1000:.1f} ms."
+            f"Benchmark completed in {result.makespan_s * 1000:.1f} ms (Sequential: {result.sequential_time_s * 1000:.1f} ms). "
+            f"Actual Speedup: {result.actual_speedup:.2f}x | Parallelism Ratio: {result.parallelism_ratio:.2f}x | Utilization: {result.worker_utilization_pct:.1f}%."
         )
 
         self.dag_canvas.update()

@@ -27,6 +27,7 @@ class TaskParallelRunnerThread(QThread):
         self._graph: Optional[TaskGraph] = None
         self._worker_count: int = 4
         self._policy: SchedulingPolicy = SchedulingPolicy.FIFO
+        self._run_benchmark: bool = True
         self._cancel_event = mp.get_context("spawn").Event()
         self._executor = TaskParallelExecutor()
 
@@ -35,11 +36,13 @@ class TaskParallelRunnerThread(QThread):
         graph: TaskGraph,
         worker_count: int,
         policy: SchedulingPolicy = SchedulingPolicy.FIFO,
+        run_benchmark: bool = True,
     ) -> None:
         """Set execution parameters before starting thread."""
         self._graph = graph
         self._worker_count = worker_count
         self._policy = policy
+        self._run_benchmark = run_benchmark
         self._cancel_event.clear()
 
     def cancel(self) -> None:
@@ -66,15 +69,26 @@ class TaskParallelRunnerThread(QThread):
             def on_progress(completed: int, total: int, msg: str):
                 self.progress_updated.emit(completed, total, msg)
 
-            result = self._executor.run_dag(
-                graph=self._graph,
-                worker_count=self._worker_count,
-                policy=self._policy,
-                task_status_callback=on_task_status,
-                worker_status_callback=on_worker_status,
-                progress_callback=on_progress,
-                cancel_event=self._cancel_event,
-            )
+            if self._run_benchmark:
+                result = self._executor.run_benchmark(
+                    graph=self._graph,
+                    worker_count=self._worker_count,
+                    policy=self._policy,
+                    task_status_callback=on_task_status,
+                    worker_status_callback=on_worker_status,
+                    progress_callback=on_progress,
+                    cancel_event=self._cancel_event,
+                )
+            else:
+                result = self._executor.run_dag(
+                    graph=self._graph,
+                    worker_count=self._worker_count,
+                    policy=self._policy,
+                    task_status_callback=on_task_status,
+                    worker_status_callback=on_worker_status,
+                    progress_callback=on_progress,
+                    cancel_event=self._cancel_event,
+                )
 
             if self._cancel_event.is_set():
                 self.dag_failed.emit("Task execution was cancelled by user.")

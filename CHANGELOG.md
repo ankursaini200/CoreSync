@@ -4,6 +4,25 @@ All notable changes to the CoreSync project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.1] - Phase 6.1: Task Parallelism Benchmark Metric Audit
+
+### Changed
+- **Separated Speedup, Parallelism Ratio, and Worker Utilization**:
+  - Replaced ambiguous speedup metric with three mathematically rigorous metrics:
+    1. **Actual Speedup**: $S = T_{\text{seq}} / T_{\text{par}}$ comparing single-threaded sequential baseline execution with parallel makespan.
+    2. **Parallelism Ratio**: $P = \sum T_{\text{worker\_compute}} / T_{\text{par}}$ measuring concurrency density (average active worker count).
+    3. **Worker Utilization**: $U = \frac{\sum T_{\text{worker\_compute}}}{\text{Worker Count} \times T_{\text{par}}} \times 100\%$ strictly bounded between 0.0% and 100.0%.
+- **Sequential Baseline Execution (`engine/task_parallel/executor.py`)**:
+  - Implemented `run_sequential()` executing an identical replica of the DAG (`graph.clone()`) on 1 worker in strict topological order with identical inputs.
+  - Implemented `run_benchmark()` coordinating sequential baseline execution, parallel DAG dispatch, and mathematical output comparison via `TaskVerifier.compare_results()`.
+  - Guaranteed that failed or cancelled runs report $S = 0.0$ and are never treated as valid benchmarks.
+- **GUI Telemetry Updates (`gui/task_parallelism.py`)**:
+  - Updated metrics grid to display Sequential Baseline ($T_{\text{seq}}$), Parallel Makespan ($T_{\text{par}}$), Actual Speedup ($S$), Parallelism Ratio ($P$), Worker Utilization ($U$), and Cumulative Compute Time ($T_{\text{cpu}}$).
+  - Added "Measure Sequential Baseline for Actual Speedup" toggle.
+- **Automated Tests (`tests/test_task_parallel.py`)**:
+  - Added 6 new unit and integration tests covering sequential baseline runs, correctness comparisons, mathematical formulas for $S$, $P$, and $U$, utilization clamping, zero-duration edge cases, and failed benchmark speedup resetting.
+  - Test suite now stands at **95 passing tests** (100% pass rate).
+
 ## [0.6.0] - Phase 6: Task Parallelism Engine: Task Queues, DAG Dependencies, Worker Execution & Monitoring
 
 ### Added

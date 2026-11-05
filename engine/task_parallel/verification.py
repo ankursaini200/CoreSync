@@ -107,3 +107,55 @@ class TaskVerifier:
         except Exception as e:
             return TaskVerificationResult(task_id, task_type, False, f"Verification exception: {e}")
 
+    @staticmethod
+    def compare_results(
+        task_type: str,
+        result_seq: Any,
+        result_par: Any,
+        rtol: float = 1e-5,
+        atol: float = 1e-8,
+    ) -> Tuple[bool, str]:
+        """Mathematically compare sequential baseline output against parallel output."""
+        if not isinstance(result_seq, dict) or not isinstance(result_par, dict):
+            return False, "Non-dict output structure"
+
+        try:
+            # Checksum equality check
+            cs_seq = result_seq.get("checksum", 0.0)
+            cs_par = result_par.get("checksum", 0.0)
+            if math.isnan(cs_seq) or math.isnan(cs_par):
+                return False, "NaN in checksum"
+
+            diff = abs(cs_seq - cs_par)
+            tol = atol + rtol * abs(cs_seq)
+            if diff > tol:
+                return False, f"Checksum divergence: seq={cs_seq}, par={cs_par}, diff={diff:.2e}"
+
+            # Task-specific equivalence checks
+            if task_type == "prime_calc":
+                if result_seq.get("count") != result_par.get("count"):
+                    return False, f"Prime count mismatch: {result_seq.get('count')} vs {result_par.get('count')}"
+                if result_seq.get("largest_prime") != result_par.get("largest_prime"):
+                    return False, f"Largest prime mismatch: {result_seq.get('largest_prime')} vs {result_par.get('largest_prime')}"
+
+            elif task_type == "numerical_integration":
+                int_seq = result_seq.get("integral", 0.0)
+                int_par = result_par.get("integral", 0.0)
+                if abs(int_seq - int_par) > (atol + rtol * abs(int_seq)):
+                    return False, f"Integral mismatch: seq={int_seq}, par={int_par}"
+
+            elif task_type == "sorting":
+                if not result_par.get("is_sorted", False):
+                    return False, "Parallel sort result is not monotonically sorted"
+                if result_seq.get("min") != result_par.get("min") or result_seq.get("max") != result_par.get("max"):
+                    return False, "Sort boundary mismatch"
+
+            elif task_type == "fibonacci":
+                if result_seq.get("last_6_digits") != result_par.get("last_6_digits"):
+                    return False, "Fibonacci last digits mismatch"
+
+            return True, "Outputs matched within tolerance"
+
+        except Exception as e:
+            return False, f"Comparison exception: {e}"
+
