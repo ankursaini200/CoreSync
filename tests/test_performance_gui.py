@@ -131,6 +131,8 @@ def test_render_data_parallel_benchmark_results(qapp, tmp_path):
     assert "4.00 x" in page.dp_card_speedup.value_label.text()
     assert "N/A (N=1 iteration)" in page.dp_card_speedup.subtitle_label.text()
     assert "100.0 %" in page.dp_card_efficiency.value_label.text()
+    assert page.dp_card_overhead.title_label.text() == "No-Worker-Compute Time"
+    assert page.dp_card_overhead.badge.label.text() == "Mathematically Derived"
     assert page.dp_table.rowCount() == 2
     assert page.dp_table.item(0, 1).text() == "Warm-up"
     assert page.dp_table.item(1, 1).text() == "Measured"

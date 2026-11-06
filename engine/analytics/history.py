@@ -18,6 +18,23 @@ logger = logging.getLogger("CoreSync.AnalyticsHistory")
 DEFAULT_BENCHMARK_DIR = Path.home() / ".coresync" / "benchmarks"
 
 
+def migrate_session_record(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize legacy benchmark records to Phase 9.1.3 measurement schema."""
+    for key in ("warmup_records", "measured_records"):
+        recs = data.get(key, [])
+        for r in recs:
+            extra = r.get("extra_metrics", {})
+            if "no_worker_compute_time_s" not in extra:
+                val = extra.get(
+                    "idle_gap_time_s",
+                    extra.get("aggregate_estimated_residual_s", extra.get("estimated_distribution_overhead_s", 0.0)),
+                )
+                extra["no_worker_compute_time_s"] = val
+            if "idle_gap_time_s" not in extra:
+                extra["idle_gap_time_s"] = extra["no_worker_compute_time_s"]
+    return data
+
+
 class BenchmarkHistoryManager:
     """Manages local persistent storage and retrieval of benchmark session records."""
 
@@ -141,7 +158,8 @@ class BenchmarkHistoryManager:
 
         try:
             with open(file_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                return migrate_session_record(data)
         except Exception as e:
             logger.error("Failed to load benchmark session %s: %s", benchmark_id, e)
             return None

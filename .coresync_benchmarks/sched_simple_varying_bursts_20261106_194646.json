@@ -1,0 +1,187 @@
+{
+  "benchmark_id": "sched_simple_varying_bursts_20261106_194646",
+  "engine_type": "cpu_scheduling",
+  "engine_name": "CPU Scheduling Simulation",
+  "workload_name": "Scheduler (1. Simple Workload (Varying Bursts))",
+  "worker_count": 1,
+  "config_parameters": {
+    "preset_id": "simple_varying_bursts",
+    "time_quantum": 2.0,
+    "context_switch_overhead": 0.1
+  },
+  "hardware_metadata": {
+    "cpu_model": "13th Gen Intel(R) Core(TM) i7-13650HX",
+    "cpu_vendor": "GenuineIntel",
+    "physical_cores": 14,
+    "total_logical_cores": 20,
+    "architecture": "x86_64",
+    "operating_system": "Arch Linux (Linux 7.2.14-arch1-1)",
+    "total_ram_gb": 15.32,
+    "available_ram_gb": 5.99,
+    "is_hybrid": true,
+    "p_core_count": 12,
+    "e_core_count": 8
+  },
+  "start_timestamp": "2026-11-06T19:46:46.492306+00:00",
+  "end_timestamp": "2026-11-06T19:46:46.493335+00:00",
+  "total_wall_clock_s": 0.001,
+  "iterations_requested": 6,
+  "warmup_iterations_requested": 0,
+  "warmup_records": [],
+  "measured_records": [
+    {
+      "iteration_idx": 1,
+      "is_warmup": false,
+      "sequential_time_s": 20.3,
+      "parallel_time_s": 20.3,
+      "speedup": 1.0,
+      "efficiency_pct": 98.52,
+      "throughput": 0.2,
+      "verification_passed": true,
+      "extra_metrics": {
+        "algorithm_name": "First Come First Serve (FCFS)",
+        "algorithm_type": "fcfs",
+        "average_waiting_time": 9.149999999999999,
+        "average_turnaround_time": 14.149999999999999,
+        "average_response_time": 9.149999999999999,
+        "context_switches": 3
+      }
+    },
+    {
+      "iteration_idx": 2,
+      "is_warmup": false,
+      "sequential_time_s": 20.3,
+      "parallel_time_s": 20.3,
+      "speedup": 1.0,
+      "efficiency_pct": 98.52,
+      "throughput": 0.2,
+      "verification_passed": true,
+      "extra_metrics": {
+        "algorithm_name": "Shortest Job First (SJF - Non-Preemptive)",
+        "algorithm_type": "sjf",
+        "average_waiting_time": 5.149999999999999,
+        "average_turnaround_time": 10.15,
+        "average_response_time": 5.15,
+        "context_switches": 3
+      }
+    },
+    {
+      "iteration_idx": 3,
+      "is_warmup": false,
+      "sequential_time_s": 20.3,
+      "parallel_time_s": 20.3,
+      "speedup": 1.0,
+      "efficiency_pct": 98.52,
+      "throughput": 0.2,
+      "verification_passed": true,
+      "extra_metrics": {
+        "algorithm_name": "Shortest Remaining Time First (SRTF - Preemptive)",
+        "algorithm_type": "srtf",
+        "average_waiting_time": 5.149999999999999,
+        "average_turnaround_time": 10.15,
+        "average_response_time": 5.15,
+        "context_switches": 3
+      }
+    },
+    {
+      "iteration_idx": 4,
+      "is_warmup": false,
+      "sequential_time_s": 20.3,
+      "parallel_time_s": 20.3,
+      "speedup": 1.0,
+      "efficiency_pct": 98.52,
+      "throughput": 0.2,
+      "verification_passed": true,
+      "extra_metrics": {
+        "algorithm_name": "Priority Scheduling (Non-Preemptive)",
+        "algorithm_type": "priority_non_preemptive",
+        "average_waiting_time": 9.65,
+        "average_turnaround_time": 14.65,
+        "average_response_time": 9.65,
+        "context_switches": 3
+      }
+    },
+    {
+      "iteration_idx": 5,
+      "is_warmup": false,
+      "sequential_time_s": 20.3,
+      "parallel_time_s": 20.3,
+      "speedup": 1.0,
+      "efficiency_pct": 98.52,
+      "throughput": 0.2,
+      "verification_passed": true,
+      "extra_metrics": {
+        "algorithm_name": "Priority Scheduling (Preemptive)",
+        "algorithm_type": "priority_preemptive",
+        "average_waiting_time": 9.65,
+        "average_turnaround_time": 14.65,
+        "average_response_time": 9.65,
+        "context_switches": 3
+      }
+    },
+    {
+      "iteration_idx": 6,
+      "is_warmup": false,
+      "sequential_time_s": 20.8,
+      "parallel_time_s": 20.8,
+      "speedup": 1.0,
+      "efficiency_pct": 96.15,
+      "throughput": 0.19,
+      "verification_passed": true,
+      "extra_metrics": {
+        "algorithm_name": "Round Robin (RR)",
+        "algorithm_type": "round_robin",
+        "average_waiting_time": 9.574999999999998,
+        "average_turnaround_time": 14.574999999999996,
+        "average_response_time": 3.1499999999999995,
+        "context_switches": 8
+      }
+    }
+  ],
+  "statistics": {
+    "waiting_time": {
+      "count": 6,
+      "mean": 8.054167,
+      "min": 5.15,
+      "max": 9.65,
+      "median": 9.3625,
+      "variance": 5.095104,
+      "std_dev": 2.257234,
+      "std_dev_display": "\u00b12.2572"
+    },
+    "turnaround_time": {
+      "count": 6,
+      "mean": 13.054167,
+      "min": 10.15,
+      "max": 14.65,
+      "median": 14.3625,
+      "variance": 5.095104,
+      "std_dev": 2.257234,
+      "std_dev_display": "\u00b12.2572"
+    },
+    "cpu_utilization": {
+      "count": 6,
+      "mean": 98.127447,
+      "min": 96.153846,
+      "max": 98.522167,
+      "median": 98.522167,
+      "variance": 0.934824,
+      "std_dev": 0.966863,
+      "std_dev_display": "\u00b10.9669"
+    },
+    "throughput": {
+      "count": 6,
+      "mean": 0.196255,
+      "min": 0.192308,
+      "max": 0.197044,
+      "median": 0.197044,
+      "variance": 4e-06,
+      "std_dev": 0.001934,
+      "std_dev_display": "\u00b10.0019"
+    }
+  },
+  "verification_passed": true,
+  "cancelled": false,
+  "error_message": null,
+  "schema_version": "1.0"
+}

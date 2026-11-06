@@ -425,7 +425,10 @@ def test_aggregate_estimated_residual_overhead_bounds():
         worker_compute_times=[1.5, 1.5],
     )
     assert normal_metrics.aggregate_estimated_residual_s == 0.5
+    assert normal_metrics.no_worker_compute_time_s == 0.5
     assert normal_metrics.provenance_map["aggregate_estimated_residual_s"]["classification"] == MetricClassification.ESTIMATED_RESIDUAL.value
+    assert normal_metrics.provenance_map["no_worker_compute_time_s"]["classification"] == MetricClassification.MATHEMATICALLY_DERIVED.value
+    assert normal_metrics.provenance_map["compute_interval_union_s"]["classification"] == MetricClassification.MATHEMATICALLY_DERIVED.value
 
 
 def test_input_data_immutability_during_benchmark():

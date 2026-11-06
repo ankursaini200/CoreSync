@@ -239,7 +239,7 @@ class ScalabilityMetrics:
     def aggregate_worker_compute_time_s(self) -> float:
         """Cumulative worker computation time across all workers, measured in worker-seconds (W*s).
 
-        Classification: DIRECTLY_MEASURED.
+        Classification: MATHEMATICALLY_DERIVED.
         Measured Inputs: sum of per-worker monotonic compute timers.
         Note: When workers execute concurrently, aggregate worker compute time may
         exceed parallel makespan. It must NOT be subtracted directly from parallel makespan.
@@ -255,7 +255,7 @@ class ScalabilityMetrics:
     def compute_interval_union_s(self) -> float:
         """Elapsed wall-clock time during which at least one worker was actively computing.
 
-        Classification: DIRECTLY_MEASURED (from worker monotonic start/finish intervals).
+        Classification: MATHEMATICALLY_DERIVED (interval union reduction of worker monotonic timestamps).
         If detailed worker start/finish intervals are available, computed via exact interval union.
         Otherwise falls back to max_worker_compute_s as a conservative single-worker bound.
         """
@@ -270,26 +270,34 @@ class ScalabilityMetrics:
         return min(self.parallel_time_s, self.max_worker_compute_s)
 
     @property
-    def idle_gap_time_s(self) -> float:
-        """Elapsed wall-clock non-compute idle gaps within the parallel execution window.
+    def no_worker_compute_time_s(self) -> float:
+        """Elapsed wall-clock time within parallel makespan when zero workers were computing.
 
         Formula: max(0.0, parallel_makespan_s - compute_interval_union_s).
-        Classification: ESTIMATED_RESIDUAL (gap interval within parallel window).
+        Classification: MATHEMATICALLY_DERIVED.
         Bounded strictly >= 0.0 and <= parallel_makespan_s.
+        Represents intervals where no instrumented worker was computing (may encompass
+        process dispatch, queue waiting, IPC transit, serialization, OS scheduling, or collection).
+        MUST NOT be described as CPU idle time or system idle time.
         """
         if self.parallel_time_s <= 0.0:
             return 0.0
         return max(0.0, self.parallel_time_s - self.compute_interval_union_s)
 
     @property
+    def idle_gap_time_s(self) -> float:
+        """Compatibility alias for no_worker_compute_time_s."""
+        return self.no_worker_compute_time_s
+
+    @property
     def aggregate_estimated_residual_s(self) -> float:
-        """Compatibility alias for idle_gap_time_s."""
-        return self.idle_gap_time_s
+        """Compatibility alias for no_worker_compute_time_s."""
+        return self.no_worker_compute_time_s
 
     @property
     def estimated_distribution_overhead_s(self) -> float:
-        """Legacy compatibility alias for idle_gap_time_s."""
-        return self.idle_gap_time_s
+        """Legacy compatibility alias for no_worker_compute_time_s."""
+        return self.no_worker_compute_time_s
 
     @property
     def provenance_map(self) -> Dict[str, Dict[str, str]]:
@@ -297,29 +305,38 @@ class ScalabilityMetrics:
         return {
             "sequential_time_s": {
                 "classification": MetricClassification.DIRECTLY_MEASURED.value,
-                "input_source": "Sequential baseline wall-clock monotonic timer",
+                "input_source": "Sequential baseline wall-clock monotonic timer (perf_counter)",
             },
             "parallel_time_s": {
                 "classification": MetricClassification.DIRECTLY_MEASURED.value,
-                "input_source": "Parallel makespan wall-clock monotonic timer",
+                "input_source": "Parallel makespan wall-clock monotonic timer (perf_counter)",
             },
             "total_computation_time_s": {
-                "classification": MetricClassification.DIRECTLY_MEASURED.value,
-                "input_source": "Sum of per-worker monotonic kernel compute timers (worker-seconds, W*s)",
+                "classification": MetricClassification.MATHEMATICALLY_DERIVED.value,
+                "formula": "sum(worker_compute_times)",
+                "measured_inputs": "Sum of per-worker monotonic compute timers (worker-seconds, W*s)",
             },
             "aggregate_worker_compute_time_s": {
-                "classification": MetricClassification.DIRECTLY_MEASURED.value,
-                "input_source": "Sum of per-worker monotonic kernel compute timers (worker-seconds, W*s)",
+                "classification": MetricClassification.MATHEMATICALLY_DERIVED.value,
+                "formula": "sum(worker_compute_times)",
+                "measured_inputs": "Sum of per-worker monotonic compute timers (worker-seconds, W*s)",
             },
             "compute_interval_union_s": {
-                "classification": MetricClassification.DIRECTLY_MEASURED.value,
-                "input_source": "Elapsed wall-clock time during which at least one worker was actively computing",
+                "classification": MetricClassification.MATHEMATICALLY_DERIVED.value,
+                "formula": "| \\bigcup [s_i, e_i] |",
+                "measured_inputs": "Elapsed wall-clock time covered by at least one worker computation interval",
             },
-            "idle_gap_time_s": {
-                "classification": MetricClassification.ESTIMATED_RESIDUAL.value,
+            "no_worker_compute_time_s": {
+                "classification": MetricClassification.MATHEMATICALLY_DERIVED.value,
                 "formula": "max(0.0, parallel_makespan_s - compute_interval_union_s)",
                 "measured_inputs": "parallel_makespan_s, compute_interval_union_s",
-                "notes": "Elapsed non-compute idle gaps within the parallel window.",
+                "notes": "Elapsed wall-clock window during which no worker was computing.",
+            },
+            "idle_gap_time_s": {
+                "classification": MetricClassification.MATHEMATICALLY_DERIVED.value,
+                "formula": "max(0.0, parallel_makespan_s - compute_interval_union_s)",
+                "measured_inputs": "parallel_makespan_s, compute_interval_union_s",
+                "notes": "Backward-compatible alias for no_worker_compute_time_s.",
             },
             "speedup": {
                 "classification": MetricClassification.MATHEMATICALLY_DERIVED.value,
@@ -350,7 +367,7 @@ class ScalabilityMetrics:
                 "classification": MetricClassification.ESTIMATED_RESIDUAL.value,
                 "formula": "max(0.0, parallel_time_s - max_worker_compute_s)",
                 "measured_inputs": "parallel_time_s, max_worker_compute_s",
-                "notes": "Aggregate residual difference; does not measure discrete micro-phases independently.",
+                "notes": "Aggregate residual estimate when detailed interval telemetry is absent.",
             },
         }
 
@@ -368,6 +385,7 @@ class ScalabilityMetrics:
             "total_computation_time_s": round(self.total_computation_time_s, 6),
             "aggregate_worker_compute_time_s": round(self.aggregate_worker_compute_time_s, 6),
             "compute_interval_union_s": round(self.compute_interval_union_s, 6),
+            "no_worker_compute_time_s": round(self.no_worker_compute_time_s, 6),
             "idle_gap_time_s": round(self.idle_gap_time_s, 6),
             "startup_overhead_s": round(self.startup_s, 6),
             "dispatch_overhead_s": round(self.dispatch_s, 6),

@@ -37,6 +37,7 @@
         "aggregate_worker_compute_time_s": 0.316,
         "cumulative_compute_s": 0.316,
         "compute_interval_union_s": 0.098,
+        "no_worker_compute_time_s": 0.014,
         "idle_gap_time_s": 0.014,
         "aggregate_estimated_residual_s": 0.014
       }

@@ -1,10 +1,17 @@
-"""Interval Timing and Non-Compute Idle Gap Analysis for CoreSync Workstations.
+"""Interval Timing and Non-Compute Window Analysis for CoreSync Workstations.
 
 Distinguishes between:
 1. aggregate_worker_compute_time_s: Sum of individual worker compute durations (worker-seconds, W*s).
-2. parallel_makespan_s: Elapsed wall-clock execution time (W_end - W_start).
-3. compute_interval_union_s: Elapsed wall-clock time during which at least one worker was computing.
-4. idle_gap_time_s: Elapsed wall-clock time within the parallel execution window when zero workers were computing.
+2. parallel_makespan_s: Elapsed wall-clock execution time (W_end - W_start, seconds).
+3. compute_interval_union_s: Elapsed wall-clock time covered by at least one worker computation interval (seconds).
+4. no_worker_compute_time_s: Elapsed wall-clock time within the parallel execution window when zero workers were computing (parallel_makespan - compute_interval_union, seconds).
+
+Important Technical Definition:
+no_worker_compute_time_s represents intervals during which no instrumented worker computation
+interval was active. It MUST NOT be described as CPU idle time, system idle time, or exclusively
+process overhead. These non-compute periods may include process dispatch, queue waiting,
+inter-process communication (IPC), serialization/deserialization, OS scheduling delays,
+coordinator activity, or result collection.
 """
 
 from dataclasses import dataclass, field
@@ -13,18 +20,28 @@ from typing import Any, Dict, List, Optional, Tuple
 
 @dataclass
 class ExecutionIntervalMetrics:
-    """Metrics parcel characterizing worker computation intervals and idle gaps."""
+    """Metrics parcel characterizing worker computation intervals and non-compute periods."""
 
     parallel_makespan_s: float
     aggregate_worker_compute_time_s: float
     compute_interval_union_s: float
-    idle_gap_time_s: float
+    no_worker_compute_time_s: float
     merged_compute_intervals: List[Tuple[float, float]] = field(default_factory=list)
-    idle_gap_intervals: List[Tuple[float, float]] = field(default_factory=list)
+    no_worker_compute_intervals: List[Tuple[float, float]] = field(default_factory=list)
+
+    @property
+    def idle_gap_time_s(self) -> float:
+        """Backward-compatible alias for no_worker_compute_time_s."""
+        return self.no_worker_compute_time_s
+
+    @property
+    def idle_gap_intervals(self) -> List[Tuple[float, float]]:
+        """Backward-compatible alias for no_worker_compute_intervals."""
+        return self.no_worker_compute_intervals
 
     @property
     def concurrency_density(self) -> float:
-        """Ratio of aggregate worker compute to compute interval union.
+        """Ratio of aggregate worker compute (worker-seconds) to compute interval union (seconds).
 
         Indicates average number of active workers during compute intervals.
         """
@@ -33,15 +50,17 @@ class ExecutionIntervalMetrics:
         return self.aggregate_worker_compute_time_s / self.compute_interval_union_s
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize interval metrics to dictionary."""
+        """Serialize interval metrics to dictionary with backward compatibility."""
         return {
             "parallel_makespan_s": round(self.parallel_makespan_s, 6),
             "aggregate_worker_compute_time_s": round(self.aggregate_worker_compute_time_s, 6),
             "compute_interval_union_s": round(self.compute_interval_union_s, 6),
-            "idle_gap_time_s": round(self.idle_gap_time_s, 6),
+            "no_worker_compute_time_s": round(self.no_worker_compute_time_s, 6),
+            "idle_gap_time_s": round(self.no_worker_compute_time_s, 6),  # backward compatibility alias
             "concurrency_density": round(self.concurrency_density, 3),
             "merged_interval_count": len(self.merged_compute_intervals),
-            "idle_gap_count": len(self.idle_gap_intervals),
+            "no_worker_compute_interval_count": len(self.no_worker_compute_intervals),
+            "idle_gap_count": len(self.no_worker_compute_intervals),  # backward compatibility alias
         }
 
 
@@ -51,7 +70,7 @@ def compute_interval_metrics(
     worker_intervals: List[Tuple[float, float]],
     raw_compute_durations: Optional[List[float]] = None,
 ) -> ExecutionIntervalMetrics:
-    """Compute exact computation interval unions and elapsed idle gaps.
+    """Compute exact computation interval unions and non-worker-compute time.
 
     Mathematical Invariants:
         1. All worker intervals are strictly clipped to the defined parallel window [window_start, window_end].
@@ -59,8 +78,8 @@ def compute_interval_metrics(
         3. compute_interval_union_s is the measure of the union of all clipped intervals:
            union = | \\bigcup [s_i, e_i] |
         4. Because union is a subset of [window_start, window_end], compute_interval_union_s <= parallel_makespan_s.
-        5. idle_gap_time_s = parallel_makespan_s - compute_interval_union_s, guaranteed >= 0.0.
-        6. aggregate_worker_compute_time_s is the sum of compute durations in worker-seconds,
+        5. no_worker_compute_time_s = parallel_makespan_s - compute_interval_union_s, guaranteed >= 0.0.
+        6. aggregate_worker_compute_time_s is the sum of compute durations in worker-seconds (W*s),
            which may exceed parallel_makespan_s when multiple workers compute concurrently.
 
     Args:
@@ -70,7 +89,7 @@ def compute_interval_metrics(
         raw_compute_durations: Optional explicit compute durations per worker (worker-seconds).
 
     Returns:
-        ExecutionIntervalMetrics with exact interval union, idle gaps, and aggregate worker compute.
+        ExecutionIntervalMetrics with exact interval union, no-worker-compute time, and aggregate compute.
     """
     parallel_makespan_s = max(0.0, float(window_end) - float(window_start))
 
@@ -108,14 +127,14 @@ def compute_interval_metrics(
 
     if not clipped:
         # No valid computation occurred within the window
-        idle_gaps = [(window_start, window_end)] if parallel_makespan_s > 0.0 else []
+        no_comp_gaps = [(window_start, window_end)] if parallel_makespan_s > 0.0 else []
         return ExecutionIntervalMetrics(
             parallel_makespan_s=parallel_makespan_s,
             aggregate_worker_compute_time_s=agg_compute_s,
             compute_interval_union_s=0.0,
-            idle_gap_time_s=parallel_makespan_s,
+            no_worker_compute_time_s=parallel_makespan_s,
             merged_compute_intervals=[],
-            idle_gap_intervals=idle_gaps,
+            no_worker_compute_intervals=no_comp_gaps,
         )
 
     # 2. Sort intervals by start time, then end time
@@ -135,24 +154,23 @@ def compute_interval_metrics(
     # 4. Calculate union of compute intervals
     union_s = sum(e - s for s, e in merged)
 
-    # 5. Calculate non-compute idle gaps (pre-gap, inter-compute gaps, post-gap)
-    idle_gaps: List[Tuple[float, float]] = []
+    # 5. Calculate non-worker-compute intervals (pre-gap, inter-compute gaps, post-gap)
+    no_comp_gaps: List[Tuple[float, float]] = []
     cursor = window_start
     for m_s, m_e in merged:
         if m_s > cursor:
-            idle_gaps.append((cursor, m_s))
+            no_comp_gaps.append((cursor, m_s))
         cursor = max(cursor, m_e)
     if cursor < window_end:
-        idle_gaps.append((cursor, window_end))
+        no_comp_gaps.append((cursor, window_end))
 
-    idle_s = max(0.0, parallel_makespan_s - union_s)
+    no_comp_s = max(0.0, parallel_makespan_s - union_s)
 
     return ExecutionIntervalMetrics(
         parallel_makespan_s=parallel_makespan_s,
         aggregate_worker_compute_time_s=agg_compute_s,
         compute_interval_union_s=union_s,
-        idle_gap_time_s=idle_s,
+        no_worker_compute_time_s=no_comp_s,
         merged_compute_intervals=merged,
-        idle_gap_intervals=idle_gaps,
+        no_worker_compute_intervals=no_comp_gaps,
     )
-

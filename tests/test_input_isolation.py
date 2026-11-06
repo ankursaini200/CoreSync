@@ -1,6 +1,7 @@
 """Unit tests for Benchmark Input Isolation, Deep Cloning, and Buffer Independence."""
 
 import io
+import threading
 import numpy as np
 import pytest
 
@@ -120,3 +121,114 @@ def test_benchmark_data_parallel_input_equivalence_and_immutability():
     # Check that master data reference was never corrupted
     assert np.array_equal(raw_data, original_snapshot)
 
+
+def test_numpy_object_array_nested_dictionaries():
+    """Verify that NumPy arrays with dtype=object containing nested dicts are deeply isolated."""
+    orig = np.empty(2, dtype=object)
+    orig[0] = {"alpha": 100, "status": "init"}
+    orig[1] = {"beta": 200, "meta": {"sub": [1, 2]}}
+
+    clone = clone_benchmark_input(orig)
+
+    assert isinstance(clone, np.ndarray)
+    assert clone.dtype == object
+    assert not np.shares_memory(orig, clone)
+    # Pointers to nested dicts must NOT be shared
+    assert orig[0] is not clone[0]
+    assert orig[1] is not clone[1]
+    assert orig[1]["meta"] is not clone[1]["meta"]
+
+    # Mutate clone: verify original remains completely unchanged
+    clone[0]["alpha"] = 999
+    clone[1]["meta"]["sub"].append(3)
+
+    assert orig[0]["alpha"] == 100
+    assert orig[1]["meta"]["sub"] == [1, 2]
+    assert verify_input_independence(orig, clone)
+
+
+def test_numpy_object_array_mutable_lists():
+    """Verify that NumPy arrays with dtype=object containing mutable lists are deeply isolated."""
+    orig = np.empty(3, dtype=object)
+    orig[0] = [1, 2, 3]
+    orig[1] = [4, 5, 6]
+    orig[2] = ["a", "b"]
+
+    clone = clone_benchmark_input(orig)
+
+    assert orig[0] is not clone[0]
+    clone[0].append(99)
+    clone[2][0] = "MODIFIED"
+
+    assert orig[0] == [1, 2, 3]
+    assert orig[2][0] == "a"
+    assert clone[0] == [1, 2, 3, 99]
+    assert clone[2][0] == "MODIFIED"
+    assert verify_input_independence(orig, clone)
+
+
+def test_custom_clone_returning_self_rejected():
+    """Verify that a custom object whose .clone() returns self is rejected with TypeError."""
+    class SelfCloner:
+        def __init__(self):
+            self.val = [1, 2, 3]
+
+        def clone(self):
+            return self
+
+    bad_obj = SelfCloner()
+    with pytest.raises(TypeError, match="returned original object instance.*self"):
+        clone_benchmark_input(bad_obj)
+
+
+def test_custom_clone_shallow_copy_shared_mutable_rejected():
+    """Verify that a custom object whose .clone() performs a shallow copy sharing mutable state is rejected."""
+    class ShallowCloner:
+        def __init__(self):
+            self.config = {"nodes": 4, "timeout": 30}
+            self.tags = ["active", "pinned"]
+
+        def clone(self):
+            new_obj = ShallowCloner()
+            # Intentionally share mutable attributes
+            new_obj.config = self.config
+            new_obj.tags = self.tags
+            return new_obj
+
+    shallow_obj = ShallowCloner()
+    with pytest.raises(TypeError, match="returned a shallow copy with shared mutable attribute"):
+        clone_benchmark_input(shallow_obj)
+
+
+def test_valid_independent_custom_clone():
+    """Verify that a valid independent custom clone succeeds and mutations do not pollute original."""
+    class ValidCloner:
+        def __init__(self, name: str, data: list):
+            self.name = name
+            self.data = list(data)
+
+        def clone(self):
+            return ValidCloner(self.name, list(self.data))
+
+    obj = ValidCloner("test_cloner", [10, 20, 30])
+    cloned = clone_benchmark_input(obj)
+
+    assert cloned is not obj
+    assert cloned.data is not obj.data
+    assert cloned.data == [10, 20, 30]
+
+    cloned.data.append(40)
+    assert obj.data == [10, 20, 30]
+    assert cloned.data == [10, 20, 30, 40]
+    assert verify_input_independence(obj, cloned)
+
+
+def test_unsupported_custom_types_raise_type_error():
+    """Verify that custom unpicklable/stateful types without a valid clone handler raise TypeError."""
+    class StatefulUnpicklable:
+        def __init__(self):
+            self.lock = threading.Lock()
+
+    bad_stateful = StatefulUnpicklable()
+    with pytest.raises(TypeError, match="Unsupported benchmark input type 'StatefulUnpicklable'"):
+        clone_benchmark_input(bad_stateful)
