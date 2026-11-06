@@ -23,6 +23,12 @@ class AmdahlPrediction:
     theoretical_efficiency_pct: float  # E% = (S / N) * 100%
     theoretical_max_speedup: float     # S_max as N -> inf (1 / (1 - P) or inf)
 
+    @property
+    def max_speedup_display(self) -> str:
+        if math.isinf(self.theoretical_max_speedup):
+            return "Unbounded (as N -> inf)"
+        return f"{self.theoretical_max_speedup:.2f}x"
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "parallel_fraction": round(self.parallel_fraction, 4),
@@ -34,7 +40,7 @@ class AmdahlPrediction:
             "theoretical_max_speedup": (
                 round(self.theoretical_max_speedup, 4)
                 if not math.isinf(self.theoretical_max_speedup)
-                else "Infinity"
+                else "Unbounded (as N -> inf)"
             ),
             "is_theoretical": True,
             "provenance": "Amdahl's Law (1967)",

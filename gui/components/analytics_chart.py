@@ -341,7 +341,7 @@ class TimingBreakdownWidget(QWidget):
             ("Parallel Compute", self._timings.get("compute_s", 0.0), PALETTE["green"]),
             ("Result Collection", self._timings.get("collection_s", 0.0), PALETTE["amber"]),
             ("Result Merge", self._timings.get("merge_s", 0.0), PALETTE["cyan"]),
-            ("Residual Overhead", self._timings.get("residual_s", self._timings.get("estimated_distribution_overhead_s", 0.0)), PALETTE["pink"]),
+            ("Aggregate Estimated Residual", self._timings.get("residual_s", self._timings.get("estimated_distribution_overhead_s", 0.0)), PALETTE["pink"]),
         ]
         # Filter non-zero
         active_segments = [s for s in segments if s[1] > 0]

@@ -11,6 +11,7 @@ Features 7 distinct analytics sections:
 """
 
 from datetime import datetime
+import math
 import os
 from typing import Any, Dict, List, Optional
 from PySide6.QtCore import Qt, Slot
@@ -41,6 +42,7 @@ from engine.analytics.benchmarking import (
     BenchmarkingEngine,
     BenchmarkEngineType,
     BenchmarkSessionResult,
+    get_sanitized_hardware_metadata,
 )
 from engine.analytics.history import BenchmarkHistoryManager
 from engine.analytics.models import MetricClassification
@@ -185,14 +187,70 @@ class PerformancePage(QWidget):
         p_layout.addWidget(p_title)
 
         p_desc = QLabel(
-            "• DIRECTLY_MEASURED: High-resolution hardware timers (perf_counter_ns), process RSS memory, and OS CPU time.\n"
-            "• MATHEMATICALLY_DERIVED: Strict mathematical formulas (Speedup S = T_seq / T_par, Parallel Efficiency E = S / W, Concurrency Ratio P).\n"
-            "• ESTIMATED_RESIDUAL: Residual process spawn, IPC transmission, and merge latency computed from difference intervals.\n"
-            "• SIMULATED_VIRTUAL: Discrete logical tick steps and virtual core state allocations from the Virtual Lab simulator."
+            "• DIRECTLY_MEASURED: High-resolution monotonic wall-clock elapsed time (time.perf_counter_ns), process RSS memory usage (RAM footprint), and OS CPU times (user + system).\n"
+            "• MATHEMATICALLY_DERIVED: Strict mathematical formulas computed from measured inputs (Actual Speedup S = T_seq / T_par, Parallel Efficiency E = S / W, Concurrency Ratio P).\n"
+            "• ESTIMATED_RESIDUAL: Aggregate estimated non-compute residual overhead (T_residual = max(0, T_par - T_compute_effective)); does not independently measure individual micro-latencies.\n"
+            "• SIMULATED_VIRTUAL: Discrete logical tick steps and virtual core capacity allocations generated inside the single-threaded Virtual Lab simulator (not real host telemetry)."
         )
         p_desc.setStyleSheet("color: #8b949e; line-height: 1.6; font-size: 12px;")
         p_layout.addWidget(p_desc)
         layout.addWidget(prov_card)
+
+        # Host Hardware Architecture & Core Topology Card
+        hw = get_sanitized_hardware_metadata()
+        hw_card = QFrame()
+        hw_card.setProperty("class", "card")
+        hw_layout = QVBoxLayout(hw_card)
+        hw_layout.setSpacing(10)
+        hw_title = QLabel("Host Hardware Architecture & Verified Topology")
+        hw_title.setProperty("class", "heading-2")
+        hw_layout.addWidget(hw_title)
+
+        hw_grid = QGridLayout()
+        hw_grid.setHorizontalSpacing(24)
+        hw_grid.setVerticalSpacing(8)
+
+        phys = hw.get("physical_cores", "Unknown")
+        logi = hw.get("total_logical_cores", "Unknown")
+        model = hw.get("cpu_model", "Unknown")
+        arch = hw.get("architecture", "Unknown")
+        os_str = hw.get("operating_system", "Unknown")
+        ram_tot = f"{hw.get('total_ram_gb', 0.0):.2f} GB" if hw.get("total_ram_gb") is not None else "Unknown"
+        ram_avail = f"{hw.get('available_ram_gb', 0.0):.2f} GB" if hw.get("available_ram_gb") is not None else "Unknown"
+        hybrid_info = "Hybrid Architecture (P-Cores + E-Cores)" if hw.get("is_hybrid") else "Symmetric Topology"
+
+        hw_grid.addWidget(QLabel("CPU Model:"), 0, 0)
+        l_model = QLabel(str(model))
+        l_model.setStyleSheet("color: #58a6ff; font-weight: bold;")
+        hw_grid.addWidget(l_model, 0, 1)
+
+        hw_grid.addWidget(QLabel("Physical Cores:"), 0, 2)
+        l_phys = QLabel(f"{phys} Physical Cores ({hybrid_info})")
+        l_phys.setStyleSheet("color: #7ee787; font-weight: bold;")
+        hw_grid.addWidget(l_phys, 0, 3)
+
+        hw_grid.addWidget(QLabel("Logical Threads:"), 1, 0)
+        l_logi = QLabel(f"{logi} Logical Processors")
+        l_logi.setStyleSheet("color: #7ee787; font-weight: bold;")
+        hw_grid.addWidget(l_logi, 1, 1)
+
+        hw_grid.addWidget(QLabel("Architecture:"), 1, 2)
+        l_arch = QLabel(f"{arch} (64-bit Monotonic)")
+        l_arch.setStyleSheet("color: #8b949e;")
+        hw_grid.addWidget(l_arch, 1, 3)
+
+        hw_grid.addWidget(QLabel("Operating System:"), 2, 0)
+        l_os = QLabel(str(os_str))
+        l_os.setStyleSheet("color: #8b949e;")
+        hw_grid.addWidget(l_os, 2, 1)
+
+        hw_grid.addWidget(QLabel("System Memory (RAM):"), 2, 2)
+        l_ram = QLabel(f"{ram_tot} Total / {ram_avail} Available")
+        l_ram.setStyleSheet("color: #8b949e;")
+        hw_grid.addWidget(l_ram, 2, 3)
+
+        hw_layout.addLayout(hw_grid)
+        layout.addWidget(hw_card)
 
         # Dual Environment Architecture Card
         dual_card = QFrame()
@@ -330,11 +388,11 @@ class PerformancePage(QWidget):
         m_grid.addWidget(self.dp_card_throughput, 0, 2)
 
         self.dp_card_overhead = MetricCard(
-            title="Distribution Overhead",
+            title="Aggregate Estimated Residual",
             value="-- ms",
-            subtitle="Estimated: IPC + spawn latency",
-            status_text="Pending",
-            status_theme="neutral",
+            subtitle="Aggregate non-compute: T_par - T_comp",
+            status_text="Estimated Residual",
+            status_theme="warning",
         )
         m_grid.addWidget(self.dp_card_overhead, 0, 3)
         layout.addLayout(m_grid)
@@ -711,11 +769,11 @@ class PerformancePage(QWidget):
         m_grid.addWidget(self.vlab_card_util, 0, 1)
 
         self.vlab_card_throughput = MetricCard(
-            title="Simulated Throughput",
-            value="-- tasks / 1000t",
-            subtitle="Tasks completed per 1000 clock cycles",
-            status_text="Simulated Virtual",
-            status_theme="warning",
+            title="Simulator Wall-Clock Time",
+            value="-- ms",
+            subtitle="Monotonic process execution duration",
+            status_text="Directly Measured",
+            status_theme="success",
         )
         m_grid.addWidget(self.vlab_card_throughput, 0, 2)
 
@@ -1110,20 +1168,29 @@ class PerformancePage(QWidget):
         mean_eff = session.statistics.get("efficiency_pct", {}).get("mean", 0.0)
         mean_thru = session.statistics.get("throughput", {}).get("mean", 0.0)
 
-        # Calculate estimated overhead
+        speedup_std = session.statistics.get("speedup", {}).get("std_dev")
+        eff_std = session.statistics.get("efficiency_pct", {}).get("std_dev")
+
+        speedup_sub = f"StdDev: ±{speedup_std:.2f}" if speedup_std is not None else "N/A (N=1 iteration)"
+        eff_sub = f"StdDev: ±{eff_std:.1f}%" if eff_std is not None else "N/A (N=1 iteration)"
+
+        # Calculate estimated aggregate residual overhead
         all_recs = session.measured_records
         avg_overhead_ms = 0.0
         if all_recs:
-            overheads = [r.extra_metrics.get("estimated_distribution_overhead_s", 0.0) * 1000.0 for r in all_recs]
-            avg_overhead_ms = sum(overheads) / len(overheads)
+            overheads = [
+                r.extra_metrics.get("aggregate_estimated_residual_s", r.extra_metrics.get("estimated_distribution_overhead_s", 0.0)) * 1000.0
+                for r in all_recs
+            ]
+            avg_overhead_ms = max(0.0, sum(overheads) / len(overheads))
 
         v_text = "Verified Equivalence" if session.verification_passed else "Verification Failed"
         v_theme = "success" if session.verification_passed else "danger"
 
-        self.dp_card_speedup.set_value(f"{mean_speedup:.2f} x", f"StdDev: ±{session.statistics.get('speedup', {}).get('std_dev', 0.0):.2f}", v_theme, v_text)
-        self.dp_card_efficiency.set_value(f"{mean_eff:.1f} %", f"StdDev: ±{session.statistics.get('efficiency_pct', {}).get('std_dev', 0.0):.1f}%", v_theme, v_text)
+        self.dp_card_speedup.set_value(f"{mean_speedup:.2f} x", speedup_sub, v_theme, v_text)
+        self.dp_card_efficiency.set_value(f"{mean_eff:.1f} %", eff_sub, v_theme, v_text)
         self.dp_card_throughput.set_value(f"{mean_thru:,.0f} it/s", f"{session.workload_name}", v_theme, v_text)
-        self.dp_card_overhead.set_value(f"{avg_overhead_ms:.2f} ms", "Residual IPC + spawn latency", "neutral", "Estimated")
+        self.dp_card_overhead.set_value(f"{avg_overhead_ms:.2f} ms", "Aggregate difference: makespan - compute", "warning", "Estimated Residual")
 
         self.dp_status_lbl.setText(f"Benchmark completed in {session.total_wall_clock_s:.2f}s ({len(session.measured_records)} measured passes).")
 
@@ -1173,7 +1240,8 @@ class PerformancePage(QWidget):
         self.tp_progress.setVisible(False)
 
         mean_speedup = session.statistics.get("speedup", {}).get("mean", 0.0)
-        mean_eff = session.statistics.get("efficiency_pct", {}).get("mean", 0.0)
+        speedup_std = session.statistics.get("speedup", {}).get("std_dev")
+        speedup_sub = f"StdDev: ±{speedup_std:.2f}" if speedup_std is not None else "N/A (N=1 iteration)"
 
         last_rec = session.measured_records[-1] if session.measured_records else None
         p_ratio = last_rec.extra_metrics.get("parallelism_ratio", 0.0) if last_rec else 0.0
@@ -1183,10 +1251,10 @@ class PerformancePage(QWidget):
         v_text = "Verified Equivalence" if session.verification_passed else "Verification Failed"
         v_theme = "success" if session.verification_passed else "danger"
 
-        self.tp_card_actual_speedup.set_value(f"{mean_speedup:.2f} x", "Baseline: T_seq / T_par", v_theme, v_text)
-        self.tp_card_parallelism_ratio.set_value(f"{p_ratio:.2f} x", "Concurrency density", "info", "Derived")
-        self.tp_card_utilization.set_value(f"{util_pct:.1f} %", "Worker core busy ratio", "info", "Derived")
-        self.tp_card_makespan.set_value(f"{makespan_ms:.1f} ms", f"{session.workload_name}", "success", "Measured")
+        self.tp_card_actual_speedup.set_value(f"{mean_speedup:.2f} x", speedup_sub, v_theme, v_text)
+        self.tp_card_parallelism_ratio.set_value(f"{p_ratio:.2f} x", "Concurrency density", "info", "Mathematically Derived")
+        self.tp_card_utilization.set_value(f"{util_pct:.1f} %", "Worker core busy ratio", "info", "Mathematically Derived")
+        self.tp_card_makespan.set_value(f"{makespan_ms:.1f} ms", f"{session.workload_name}", "success", "Directly Measured")
 
         self.tp_status_lbl.setText(f"DAG Benchmark completed in {session.total_wall_clock_s:.2f}s.")
 
@@ -1220,12 +1288,12 @@ class PerformancePage(QWidget):
             self.tp_chart_scalability.set_data(pts, title=f"Speedup ({session.workload_name})")
 
             # Timing breakdown
-            c_comp = last.extra_metrics.get("cumulative_compute_s", 0.0)
+            c_comp = last.extra_metrics.get("cumulative_worker_compute_time_s", last.extra_metrics.get("cumulative_compute_s", 0.0))
             avg_worker_comp = c_comp / max(1, workers)
-            residual_s = max(0.0, last.parallel_time_s - avg_worker_comp)
+            residual_s = last.extra_metrics.get("aggregate_estimated_residual_s", max(0.0, last.parallel_time_s - avg_worker_comp))
             timings = {
                 "compute_s": avg_worker_comp,
-                "residual_s": residual_s,
+                "residual_s": max(0.0, residual_s),
             }
             self.tp_chart_timings.set_timings(timings)
 
@@ -1290,29 +1358,35 @@ class PerformancePage(QWidget):
         r = recs[0]
         m = r.extra_metrics
 
+        ticks = m.get("simulated_ticks_elapsed", m.get("ticks_elapsed", 0))
+        virtual_util = m.get("virtual_core_util_pct", m.get("virtual_util_pct", 0.0))
+        wall_clock_s = m.get("simulator_wall_clock_s", session.total_wall_clock_s)
+        completed = m.get("completed_tasks", 0)
+        total_tasks = session.config_parameters.get("task_count", completed)
+
         self.vlab_card_ticks.set_value(
-            f"{m.get('ticks_elapsed', 0)} ticks",
-            f"{session.workload_name}",
+            f"{ticks} ticks",
+            f"Simulated Clock ({session.workload_name})",
             "warning",
-            "Simulated",
+            "Simulated Virtual",
         )
         self.vlab_card_util.set_value(
-            f"{m.get('virtual_util_pct', 0.0):.1f} %",
-            f"{session.worker_count} Virtual Cores",
+            f"{virtual_util:.1f} %",
+            f"{session.worker_count} Virtual Cores Capacity",
             "warning",
-            "Simulated",
+            "Simulated Virtual",
         )
         self.vlab_card_throughput.set_value(
-            f"{r.throughput:.2f}",
-            "Normalized to 1000 ticks",
-            "warning",
-            "Simulated",
+            f"{wall_clock_s * 1000.0:.2f} ms",
+            "Direct Monotonic Wall-Clock Time",
+            "success",
+            "Directly Measured",
         )
         self.vlab_card_verified.set_value(
-            f"{m.get('completed_tasks', 0)} / {session.config_parameters.get('task_count', 0)}",
-            "All tasks processed",
-            "success",
-            "Verified",
+            f"{completed} / {total_tasks}",
+            "Deterministic Virtual Completion",
+            "warning",
+            "Simulated Virtual",
         )
 
     # =========================================================================
@@ -1334,16 +1408,17 @@ class PerformancePage(QWidget):
 
         s_str = f"{pred.theoretical_speedup:.2f} x"
         eff_str = f"{pred.theoretical_efficiency_pct:.1f} %"
-        max_s_str = (
-            f"{pred.theoretical_max_speedup:.2f} x"
-            if pred.theoretical_max_speedup != float("inf")
-            else "Infinity"
-        )
+        if math.isinf(pred.theoretical_max_speedup):
+            max_s_str = "Unbounded (∞)"
+            max_s_sub = "S_max as N -> ∞ (Zero Serial Bottleneck)"
+        else:
+            max_s_str = f"{pred.theoretical_max_speedup:.2f} x"
+            max_s_sub = "S_max as N -> ∞ (Amdahl Asymptote)"
         ser_str = f"{pred.serial_fraction * 100.0:.1f} %"
 
         self.amdahl_card_speedup.set_value(s_str, f"Speedup on {n} Cores", "info", "Theoretical")
         self.amdahl_card_eff.set_value(eff_str, f"Efficiency on {n} Cores", "info", "Theoretical")
-        self.amdahl_card_max_speedup.set_value(max_s_str, "S_max as N -> inf", "warning", "Theoretical Limit")
+        self.amdahl_card_max_speedup.set_value(max_s_str, max_s_sub, "warning", "Theoretical Limit")
         self.amdahl_card_serial_frac.set_value(ser_str, "Mandatory serial portion", "danger", "Constraint")
 
         self.amdahl_chart.set_parameters(parallel_fraction=p, operating_processors=n, max_processors=32)

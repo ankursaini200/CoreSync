@@ -10,7 +10,11 @@
     "worker_count": 8
   },
   "hardware_metadata": {
-    "cpu_model": "Host Processor (20 Physical Cores)"
+    "cpu_model": "13th Gen Intel(R) Core(TM) i7-13650HX",
+    "physical_cores": 14,
+    "total_logical_cores": 20,
+    "architecture": "x86_64",
+    "operating_system": "Arch Linux (Linux 7.2.14-arch1-1)"
   },
   "start_timestamp": "2026-11-06T18:30:00Z",
   "end_timestamp": "2026-11-06T18:30:01Z",

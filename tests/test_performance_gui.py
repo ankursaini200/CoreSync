@@ -5,7 +5,7 @@ import sys
 from unittest.mock import MagicMock
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from engine.analytics.benchmarking import (
     BenchmarkEngineType,
@@ -68,6 +68,13 @@ def test_amdahl_slider_interactive_updates(qapp, tmp_path):
     assert page.amdahl_card_max_speedup.value_label.text() == "5.00 x"
     assert page.amdahl_card_serial_frac.value_label.text() == "20.0 %"
 
+    # Move parallel fraction to 100% (P = 1.0)
+    page.amdahl_slider_p.setValue(100)
+    assert "100.0%" in page.amdahl_lbl_p_val.text()
+    assert "0.0%" in page.amdahl_lbl_p_val.text()
+    assert page.amdahl_card_max_speedup.value_label.text() == "Unbounded (∞)"
+    assert "Zero Serial Bottleneck" in page.amdahl_card_max_speedup.subtitle_label.text()
+
 
 def test_render_data_parallel_benchmark_results(qapp, tmp_path):
     """Verify Data Parallel benchmark session result renders metrics, table, and charts."""
@@ -112,9 +119,9 @@ def test_render_data_parallel_benchmark_results(qapp, tmp_path):
         warmup_records=[rec_warmup],
         measured_records=[rec_measured],
         statistics={
-            "speedup": {"mean": 4.0, "std_dev": 0.0},
-            "efficiency_pct": {"mean": 100.0, "std_dev": 0.0},
-            "throughput": {"mean": 5000.0, "std_dev": 0.0},
+            "speedup": {"mean": 4.0, "std_dev": None},
+            "efficiency_pct": {"mean": 100.0, "std_dev": None},
+            "throughput": {"mean": 5000.0, "std_dev": None},
         },
         verification_passed=True,
     )
@@ -122,6 +129,7 @@ def test_render_data_parallel_benchmark_results(qapp, tmp_path):
     page._render_dp_results(session)
 
     assert "4.00 x" in page.dp_card_speedup.value_label.text()
+    assert "N/A (N=1 iteration)" in page.dp_card_speedup.subtitle_label.text()
     assert "100.0 %" in page.dp_card_efficiency.value_label.text()
     assert page.dp_table.rowCount() == 2
     assert page.dp_table.item(0, 1).text() == "Warm-up"
@@ -164,8 +172,8 @@ def test_render_task_parallel_benchmark_results(qapp, tmp_path):
         warmup_records=[],
         measured_records=[rec],
         statistics={
-            "speedup": {"mean": 2.5, "std_dev": 0.0},
-            "efficiency_pct": {"mean": 62.5, "std_dev": 0.0},
+            "speedup": {"mean": 2.5, "std_dev": None},
+            "efficiency_pct": {"mean": 62.5, "std_dev": None},
         },
         verification_passed=True,
     )
@@ -173,6 +181,7 @@ def test_render_task_parallel_benchmark_results(qapp, tmp_path):
     page._render_tp_results(session)
 
     assert "2.50 x" in page.tp_card_actual_speedup.value_label.text()
+    assert "N/A (N=1 iteration)" in page.tp_card_actual_speedup.subtitle_label.text()
     assert "2.20 x" in page.tp_card_parallelism_ratio.value_label.text()
     assert "55.0 %" in page.tp_card_utilization.value_label.text()
     assert page.tp_table.rowCount() == 1
@@ -349,4 +358,22 @@ def test_custom_painter_widgets_rendering(qapp):
     w3 = TimingBreakdownWidget()
     w3.set_timings({"startup_s": 0.001, "compute_s": 0.010, "merge_s": 0.002})
     w3.repaint()
+
+
+def test_dashboard_tab_hardware_and_provenance_labels(qapp, tmp_path):
+    """Verify that Overview Dashboard renders hardware topology and classification labels."""
+    os.environ["CORESYNC_BENCHMARK_DIR"] = str(tmp_path / "benchmarks")
+    page = PerformancePage()
+
+    # Find labels in dashboard tab
+    dash_widget = page.tabs.widget(0)
+    all_labels = [lbl.text() for lbl in dash_widget.findChildren(QLabel)]
+    all_text = " ".join(all_labels)
+
+    # Must mention physical cores, logical processors, and monotonic time
+    assert "14 Physical Cores" in all_text or "Physical Cores:" in all_text
+    assert "Logical Processors" in all_text or "Logical Threads:" in all_text
+    assert "time.perf_counter_ns" in all_text
+    assert "ESTIMATED_RESIDUAL" in all_text
+    assert "SIMULATED_VIRTUAL" in all_text
 

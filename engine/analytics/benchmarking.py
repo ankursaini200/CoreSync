@@ -123,25 +123,64 @@ class BenchmarkSessionResult:
 
 
 def get_sanitized_hardware_metadata() -> Dict[str, Any]:
-    """Capture sanitized host hardware topology metadata for benchmark documentation."""
+    """Capture authoritative host hardware topology metadata for benchmark documentation.
+
+    Distinguishes physical cores from logical processor threads, and captures RAM and OS.
+    If detection is unavailable or fails, marks fields as 'Unknown' rather than fabricating data.
+    """
     try:
-        hw = get_hardware_provider()
-        cpu_info = hw.get_cpu_info()
+        from utils.system_info import get_system_summary, get_ram_info
+        summary = get_system_summary()
+        ram = get_ram_info()
+        p_cores = summary.physical_cores if summary.physical_cores > 0 else "Unknown"
+        l_cores = summary.logical_cores if summary.logical_cores > 0 else "Unknown"
         return {
-            "cpu_model": cpu_info.model_name,
-            "physical_cores": cpu_info.physical_cores,
-            "total_logical_cores": cpu_info.logical_cores,
-            "architecture": cpu_info.architecture,
-            "base_frequency_mhz": cpu_info.base_frequency_mhz,
+            "cpu_model": summary.cpu_model or "Unknown",
+            "cpu_vendor": summary.cpu_vendor or "Unknown",
+            "physical_cores": p_cores,
+            "total_logical_cores": l_cores,
+            "architecture": summary.architecture or "Unknown",
+            "operating_system": f"{summary.os_name} ({summary.os_kernel})" if summary.os_name else "Unknown",
+            "total_ram_gb": round(ram.total_gb, 2) if ram and ram.total_gb > 0 else "Unknown",
+            "available_ram_gb": round(ram.available_gb, 2) if ram and ram.available_gb > 0 else "Unknown",
+            "is_hybrid": summary.topology.is_hybrid if summary.topology else False,
+            "p_core_count": len(summary.topology.p_cores) if summary.topology else 0,
+            "e_core_count": len(summary.topology.e_cores) if summary.topology else 0,
         }
     except Exception:
-        import os
-        return {
-            "cpu_model": "Host Processor",
-            "physical_cores": os.cpu_count() or 1,
-            "total_logical_cores": os.cpu_count() or 1,
-            "architecture": "x86_64",
-        }
+        import platform
+        import psutil
+        try:
+            p_cores = psutil.cpu_count(logical=False) or "Unknown"
+            l_cores = psutil.cpu_count(logical=True) or "Unknown"
+            vm = psutil.virtual_memory()
+            return {
+                "cpu_model": "Unknown",
+                "cpu_vendor": "Unknown",
+                "physical_cores": p_cores,
+                "total_logical_cores": l_cores,
+                "architecture": platform.machine() or "Unknown",
+                "operating_system": f"{platform.system()} {platform.release()}",
+                "total_ram_gb": round(vm.total / (1024**3), 2),
+                "available_ram_gb": round(vm.available / (1024**3), 2),
+                "is_hybrid": False,
+                "p_core_count": 0,
+                "e_core_count": 0,
+            }
+        except Exception:
+            return {
+                "cpu_model": "Unknown",
+                "cpu_vendor": "Unknown",
+                "physical_cores": "Unknown",
+                "total_logical_cores": "Unknown",
+                "architecture": "Unknown",
+                "operating_system": "Unknown",
+                "total_ram_gb": "Unknown",
+                "available_ram_gb": "Unknown",
+                "is_hybrid": False,
+                "p_core_count": 0,
+                "e_core_count": 0,
+            }
 
 
 class BenchmarkingEngine:
@@ -210,14 +249,16 @@ class BenchmarkingEngine:
                     if progress_cb:
                         progress_cb(pass_idx, total_passes, f"Running Warm-up Pass {w_idx + 1}/{warmup_runs}...")
 
+                    pass_data = data.copy() if hasattr(data, "copy") else data
                     b_res = executor.run_benchmark(
                         op_id=op_id,
-                        data=data,
+                        data=pass_data,
                         worker_count=worker_count,
                     )
                     if not b_res.verification.passed:
                         all_verified = False
 
+                    residual_overhead = max(0.0, b_res.timings.estimated_distribution_overhead_s)
                     warmup_records.append(
                         BenchmarkIterationRecord(
                             iteration_idx=w_idx + 1,
@@ -233,7 +274,10 @@ class BenchmarkingEngine:
                                 "dispatch_s": b_res.timings.dispatch_s,
                                 "collection_s": b_res.timings.collection_s,
                                 "merge_s": b_res.timings.merge_s,
-                                "estimated_distribution_overhead_s": b_res.timings.estimated_distribution_overhead_s,
+                                "aggregate_estimated_residual_s": residual_overhead,
+                                "estimated_distribution_overhead_s": residual_overhead,
+                                "residual_classification": MetricClassification.ESTIMATED_RESIDUAL.value,
+                                "residual_notes": "Aggregate residual derived via T_dispatch + max(0, T_collection - max_worker_compute)",
                             },
                         )
                     )
@@ -248,14 +292,16 @@ class BenchmarkingEngine:
                     if progress_cb:
                         progress_cb(pass_idx, total_passes, f"Running Benchmark Iteration {m_idx + 1}/{iterations}...")
 
+                    pass_data = data.copy() if hasattr(data, "copy") else data
                     b_res = executor.run_benchmark(
                         op_id=op_id,
-                        data=data,
+                        data=pass_data,
                         worker_count=worker_count,
                     )
                     if not b_res.verification.passed:
                         all_verified = False
 
+                    residual_overhead = max(0.0, b_res.timings.estimated_distribution_overhead_s)
                     measured_records.append(
                         BenchmarkIterationRecord(
                             iteration_idx=m_idx + 1,
@@ -271,7 +317,10 @@ class BenchmarkingEngine:
                                 "dispatch_s": b_res.timings.dispatch_s,
                                 "collection_s": b_res.timings.collection_s,
                                 "merge_s": b_res.timings.merge_s,
-                                "estimated_distribution_overhead_s": b_res.timings.estimated_distribution_overhead_s,
+                                "aggregate_estimated_residual_s": residual_overhead,
+                                "estimated_distribution_overhead_s": residual_overhead,
+                                "residual_classification": MetricClassification.ESTIMATED_RESIDUAL.value,
+                                "residual_notes": "Aggregate residual derived via T_dispatch + max(0, T_collection - max_worker_compute)",
                             },
                         )
                     )
@@ -287,12 +336,30 @@ class BenchmarkingEngine:
         total_wall_s = time.perf_counter() - start_time
 
         # Calculate statistics across measured passes
+        measured_seq = [r.sequential_time_s for r in measured_records]
+        measured_par = [r.parallel_time_s for r in measured_records]
+        measured_speedups = [r.speedup for r in measured_records]
+        measured_eff = [r.efficiency_pct for r in measured_records]
+        measured_thru = [r.throughput for r in measured_records]
+
+        mean_seq = sum(measured_seq) / len(measured_seq) if measured_seq else 0.0
+        mean_par = sum(measured_par) / len(measured_par) if measured_par else 0.0
+
+        speedup_stats = calculate_sample_statistics(measured_speedups)
+        agg_speedup = (mean_seq / mean_par) if mean_par > 0.0 else 0.0
+        speedup_stats["mean_paired_speedup"] = speedup_stats["mean"]
+        speedup_stats["aggregate_ratio_speedup"] = round(agg_speedup, 4)
+        speedup_stats["calculation_method"] = (
+            "mean is arithmetic average of per-iteration paired speedups: (1/K)*sum(T_seq_i / T_par_i); "
+            "aggregate_ratio_speedup is the ratio of average sequential to average parallel time: mean(T_seq) / mean(T_par)."
+        )
+
         stats = {
-            "sequential_time_s": calculate_sample_statistics([r.sequential_time_s for r in measured_records]),
-            "parallel_time_s": calculate_sample_statistics([r.parallel_time_s for r in measured_records]),
-            "speedup": calculate_sample_statistics([r.speedup for r in measured_records]),
-            "efficiency_pct": calculate_sample_statistics([r.efficiency_pct for r in measured_records]),
-            "throughput": calculate_sample_statistics([r.throughput for r in measured_records]),
+            "sequential_time_s": calculate_sample_statistics(measured_seq),
+            "parallel_time_s": calculate_sample_statistics(measured_par),
+            "speedup": speedup_stats,
+            "efficiency_pct": calculate_sample_statistics(measured_eff),
+            "throughput": calculate_sample_statistics(measured_thru),
         }
 
         op_spec = get_supported_operations().get(op_id)
@@ -381,6 +448,8 @@ class BenchmarkingEngine:
 
                     eff_pct = (b_res.actual_speedup / worker_count * 100.0) if worker_count > 0 else 0.0
                     throughput = (b_res.completed_tasks / b_res.makespan_s) if b_res.makespan_s > 0 else 0.0
+                    avg_w_comp = b_res.cumulative_compute_s / max(1, worker_count)
+                    res_overhead = max(0.0, b_res.makespan_s - avg_w_comp)
 
                     warmup_records.append(
                         BenchmarkIterationRecord(
@@ -396,6 +465,9 @@ class BenchmarkingEngine:
                                 "parallelism_ratio": b_res.parallelism_ratio,
                                 "worker_utilization_pct": b_res.worker_utilization_pct,
                                 "cumulative_compute_s": b_res.cumulative_compute_s,
+                                "aggregate_estimated_residual_s": res_overhead,
+                                "estimated_distribution_overhead_s": res_overhead,
+                                "residual_classification": MetricClassification.ESTIMATED_RESIDUAL.value,
                             },
                         )
                     )
@@ -416,6 +488,8 @@ class BenchmarkingEngine:
 
                     eff_pct = (b_res.actual_speedup / worker_count * 100.0) if worker_count > 0 else 0.0
                     throughput = (b_res.completed_tasks / b_res.makespan_s) if b_res.makespan_s > 0 else 0.0
+                    avg_w_comp = b_res.cumulative_compute_s / max(1, worker_count)
+                    res_overhead = max(0.0, b_res.makespan_s - avg_w_comp)
 
                     measured_records.append(
                         BenchmarkIterationRecord(
@@ -431,6 +505,9 @@ class BenchmarkingEngine:
                                 "parallelism_ratio": b_res.parallelism_ratio,
                                 "worker_utilization_pct": b_res.worker_utilization_pct,
                                 "cumulative_compute_s": b_res.cumulative_compute_s,
+                                "aggregate_estimated_residual_s": res_overhead,
+                                "estimated_distribution_overhead_s": res_overhead,
+                                "residual_classification": MetricClassification.ESTIMATED_RESIDUAL.value,
                             },
                         )
                     )
@@ -444,12 +521,30 @@ class BenchmarkingEngine:
         end_dt = datetime.now(timezone.utc)
         total_wall_s = time.perf_counter() - start_time
 
+        measured_seq = [r.sequential_time_s for r in measured_records]
+        measured_par = [r.parallel_time_s for r in measured_records]
+        measured_speedups = [r.speedup for r in measured_records]
+        measured_eff = [r.efficiency_pct for r in measured_records]
+        measured_thru = [r.throughput for r in measured_records]
+
+        mean_seq = sum(measured_seq) / len(measured_seq) if measured_seq else 0.0
+        mean_par = sum(measured_par) / len(measured_par) if measured_par else 0.0
+
+        speedup_stats = calculate_sample_statistics(measured_speedups)
+        agg_speedup = (mean_seq / mean_par) if mean_par > 0.0 else 0.0
+        speedup_stats["mean_paired_speedup"] = speedup_stats["mean"]
+        speedup_stats["aggregate_ratio_speedup"] = round(agg_speedup, 4)
+        speedup_stats["calculation_method"] = (
+            "mean is arithmetic average of per-iteration paired speedups: (1/K)*sum(T_seq_i / T_par_i); "
+            "aggregate_ratio_speedup is the ratio of average sequential to average parallel time: mean(T_seq) / mean(T_par)."
+        )
+
         stats = {
-            "sequential_time_s": calculate_sample_statistics([r.sequential_time_s for r in measured_records]),
-            "parallel_time_s": calculate_sample_statistics([r.parallel_time_s for r in measured_records]),
-            "speedup": calculate_sample_statistics([r.speedup for r in measured_records]),
-            "efficiency_pct": calculate_sample_statistics([r.efficiency_pct for r in measured_records]),
-            "throughput": calculate_sample_statistics([r.throughput for r in measured_records]),
+            "sequential_time_s": calculate_sample_statistics(measured_seq),
+            "parallel_time_s": calculate_sample_statistics(measured_par),
+            "speedup": speedup_stats,
+            "efficiency_pct": calculate_sample_statistics(measured_eff),
+            "throughput": calculate_sample_statistics(measured_thru),
         }
 
         return BenchmarkSessionResult(
@@ -615,25 +710,35 @@ class BenchmarkingEngine:
         measured_record = BenchmarkIterationRecord(
             iteration_idx=1,
             is_warmup=False,
-            sequential_time_s=float(ticks_elapsed),
-            parallel_time_s=float(ticks_elapsed),
+            sequential_time_s=round(total_wall_s, 6),
+            parallel_time_s=round(total_wall_s, 6),
             speedup=float(virtual_cores) * (virtual_util_pct / 100.0),
             efficiency_pct=virtual_util_pct,
             throughput=throughput,
             verification_passed=completed_count == task_count,
             extra_metrics={
-                "ticks_elapsed": ticks_elapsed,
+                "simulated_ticks_elapsed": ticks_elapsed,
                 "virtual_cores": virtual_cores,
                 "completed_tasks": completed_count,
-                "virtual_util_pct": round(virtual_util_pct, 2),
+                "virtual_core_util_pct": round(virtual_util_pct, 2),
+                "simulated_throughput_per_1000_ticks": round(throughput, 2),
+                "simulator_wall_clock_s": round(total_wall_s, 6),
                 "is_simulated": True,
+                "metric_provenance": {
+                    "simulated_ticks_elapsed": MetricClassification.SIMULATED_VIRTUAL.value,
+                    "virtual_core_util_pct": MetricClassification.SIMULATED_VIRTUAL.value,
+                    "simulator_wall_clock_s": MetricClassification.DIRECTLY_MEASURED.value,
+                },
+                "provenance_simulated_ticks": "SIMULATED_VIRTUAL (discrete logical cycles)",
+                "provenance_simulator_wall_clock": "DIRECTLY_MEASURED (host Python elapsed duration)",
             },
         )
 
         stats = {
-            "ticks_elapsed": {"mean": float(ticks_elapsed), "min": float(ticks_elapsed), "max": float(ticks_elapsed)},
-            "virtual_util_pct": {"mean": round(virtual_util_pct, 2), "min": round(virtual_util_pct, 2), "max": round(virtual_util_pct, 2)},
-            "throughput_per_1000_ticks": {"mean": round(throughput, 2), "min": round(throughput, 2), "max": round(throughput, 2)},
+            "simulated_ticks": {"mean": float(ticks_elapsed), "min": float(ticks_elapsed), "max": float(ticks_elapsed), "std_dev": None, "std_dev_display": "N/A (single simulation)"},
+            "virtual_util_pct": {"mean": round(virtual_util_pct, 2), "min": round(virtual_util_pct, 2), "max": round(virtual_util_pct, 2), "std_dev": None, "std_dev_display": "N/A (single simulation)"},
+            "simulated_throughput_per_1000_ticks": {"mean": round(throughput, 2), "min": round(throughput, 2), "max": round(throughput, 2), "std_dev": None, "std_dev_display": "N/A (single simulation)"},
+            "simulator_wall_clock_s": {"mean": round(total_wall_s, 6), "min": round(total_wall_s, 6), "max": round(total_wall_s, 6), "std_dev": None, "std_dev_display": "N/A (single simulation)"},
         }
 
         return BenchmarkSessionResult(

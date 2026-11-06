@@ -142,17 +142,24 @@ def test_calculate_sample_statistics():
 
 
 def test_sample_statistics_single_element_and_empty():
-    """Verify statistical function handles empty and single-element lists without ZeroDivisionError."""
+    """Verify statistical function handles empty and single-element lists correctly.
+    For N=1 and N=0, sample standard deviation is undefined and must be None."""
     empty_stats = calculate_sample_statistics([])
     assert empty_stats["count"] == 0
     assert empty_stats["mean"] == 0.0
-    assert empty_stats["std_dev"] == 0.0
+    assert empty_stats["std_dev"] is None
+    assert empty_stats["variance"] is None
+    assert empty_stats["std_dev_display"] == "N/A (empty sample)"
 
     single_stats = calculate_sample_statistics([42.0])
     assert single_stats["count"] == 1
     assert single_stats["mean"] == 42.0
     assert single_stats["median"] == 42.0
-    assert single_stats["std_dev"] == 0.0
+    assert single_stats["min"] == 42.0
+    assert single_stats["max"] == 42.0
+    assert single_stats["std_dev"] is None
+    assert single_stats["variance"] is None
+    assert single_stats["std_dev_display"] == "N/A (insufficient samples, N=1)"
 
 
 # =============================================================================
@@ -373,4 +380,125 @@ def test_benchmarking_engine_cancellation():
 
     assert session.cancelled is True
     assert len(session.measured_records) == 0
+
+
+# =============================================================================
+# 6. PHASE 9.1 AUDIT VERIFICATION TESTS
+# =============================================================================
+
+def test_hardware_metadata_distinguishes_physical_from_logical():
+    """Verify hardware metadata captures separate physical cores vs logical threads."""
+    hw = get_sanitized_hardware_metadata()
+    assert "physical_cores" in hw
+    assert "total_logical_cores" in hw
+    assert "cpu_model" in hw
+    assert "architecture" in hw
+    assert "operating_system" in hw
+    assert "total_ram_gb" in hw
+
+    # Host architecture: Intel Core i7-13650HX hybrid
+    # Physical cores = 14 (6 P-cores + 8 E-cores), Logical processors = 20
+    assert hw["physical_cores"] == 14
+    assert hw["total_logical_cores"] == 20
+    assert hw["physical_cores"] < hw["total_logical_cores"]
+    assert "Intel" in hw["cpu_model"]
+    assert hw["total_ram_gb"] > 0.0
+
+
+def test_aggregate_estimated_residual_overhead_bounds():
+    """Verify aggregate residual overhead is non-negative and properly classified."""
+    # When worker compute artificially exceeds parallel time due to timer jitter
+    metrics = ScalabilityMetrics(
+        sequential_time_s=10.0,
+        parallel_time_s=2.0,
+        worker_count=2,
+        worker_compute_times=[2.5, 2.5],  # Average = 2.5 > 2.0
+    )
+    # residual = max(0.0, 2.0 - 2.5) = 0.0
+    assert metrics.aggregate_estimated_residual_s == 0.0
+
+    # Normal case: residual = max(0.0, 2.0 - 1.5) = 0.5s
+    normal_metrics = ScalabilityMetrics(
+        sequential_time_s=10.0,
+        parallel_time_s=2.0,
+        worker_count=2,
+        worker_compute_times=[1.5, 1.5],
+    )
+    assert normal_metrics.aggregate_estimated_residual_s == 0.5
+    assert normal_metrics.provenance_map["aggregate_estimated_residual_s"]["classification"] == MetricClassification.ESTIMATED_RESIDUAL.value
+
+
+def test_input_data_immutability_during_benchmark():
+    """Verify sequential and parallel passes use identical copy-isolated input arrays."""
+    import numpy as np
+    from engine.data_parallel.operations import generate_dataset
+
+    original_data = generate_dataset("transcendental", 5_000)
+    data_snapshot = original_data.copy()
+
+    engine = BenchmarkingEngine()
+    session = engine.run_data_parallel_benchmark(
+        op_id="transcendental",
+        dataset_size=5_000,
+        worker_count=2,
+        iterations=2,
+        warmup_runs=1,
+    )
+
+    assert session.verification_passed is True
+    # Confirm original reference data was not mutated
+    assert np.array_equal(original_data, data_snapshot)
+
+
+def test_paired_speedup_mean_and_aggregate_ratio_speedup():
+    """Verify statistical rollups report both paired speedup mean and aggregate ratio speedup."""
+    engine = BenchmarkingEngine()
+    session = engine.run_data_parallel_benchmark(
+        op_id="transcendental",
+        dataset_size=10_000,
+        worker_count=2,
+        iterations=3,
+        warmup_runs=1,
+    )
+
+    stats = session.statistics["speedup"]
+    assert "mean" in stats
+    assert "mean_paired_speedup" in stats
+    assert "aggregate_ratio_speedup" in stats
+    assert stats["mean_paired_speedup"] == stats["mean"]
+    assert stats["aggregate_ratio_speedup"] > 0.0
+
+
+def test_virtual_lab_measurement_separation():
+    """Verify Virtual Lab clearly distinguishes simulated ticks from monotonic wall-clock time."""
+    engine = BenchmarkingEngine()
+    session = engine.run_virtual_lab_benchmark(
+        virtual_cores=4,
+        task_count=16,
+    )
+
+    rec = session.measured_records[0]
+    extra = rec.extra_metrics
+    assert extra["is_simulated"] is True
+    assert "simulated_ticks_elapsed" in extra
+    assert "virtual_core_util_pct" in extra
+    assert "simulator_wall_clock_s" in extra
+    assert extra["metric_provenance"]["simulated_ticks_elapsed"] == MetricClassification.SIMULATED_VIRTUAL.value
+    assert extra["metric_provenance"]["virtual_core_util_pct"] == MetricClassification.SIMULATED_VIRTUAL.value
+    assert extra["metric_provenance"]["simulator_wall_clock_s"] == MetricClassification.DIRECTLY_MEASURED.value
+
+
+def test_amdahl_asymptote_unbounded_and_display():
+    """Verify Amdahl Calculator handles P=1.0 with unbounded asymptote and formatted string."""
+    pred = AmdahlCalculator.predict(parallel_fraction=1.0, processors=16)
+    assert pred.theoretical_speedup == 16.0
+    assert pred.theoretical_efficiency == 1.0
+    assert math.isinf(pred.theoretical_max_speedup)
+    assert pred.max_speedup_display == "Unbounded (as N -> inf)"
+
+    # P = 0.0 completely serial
+    pred_serial = AmdahlCalculator.predict(parallel_fraction=0.0, processors=16)
+    assert pred_serial.theoretical_speedup == 1.0
+    assert pred_serial.theoretical_max_speedup == 1.0
+    assert pred_serial.max_speedup_display == "1.00x"
 
