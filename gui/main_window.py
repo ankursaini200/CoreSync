@@ -30,6 +30,7 @@ from gui.real_system.stress_view import RealStressPage
 from gui.virtual_lab.config_view import VirtualConfigPage
 from gui.virtual_lab.monitor_view import VirtualMonitorPage
 from gui.virtual_lab.scheduler_view import VirtualSchedulerPage
+from gui.scheduler_view import SchedulerViewPage
 from gui.data_parallelism import DataParallelismPage
 from gui.task_parallelism import TaskParallelismPage
 from gui.performance import PerformancePage
@@ -54,6 +55,7 @@ class MainWindow(QMainWindow):
         8: ("Task Parallelism", "Heterogeneous Workloads & DAG Dependency Manager"),
         9: ("Performance Analytics", "Speedup, Efficiency & Amdahl's Law"),
         10: ("Settings", "Process Timeouts, Engine & Probing Config"),
+        11: ("Process Scheduler", "CPU Scheduling Algorithms & Gantt Timeline"),
     }
 
     def __init__(self, start_monitor: bool = True):
@@ -124,6 +126,7 @@ class MainWindow(QMainWindow):
         self.page_task = TaskParallelismPage(self)
         self.page_performance = PerformancePage(self)
         self.page_settings = SettingsPage(self)
+        self.page_process_scheduler = SchedulerViewPage(self)
 
         self.pages.addWidget(self.page_dashboard)    # Index 0
         self.pages.addWidget(self.page_core)         # Index 1
@@ -136,6 +139,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.page_task)         # Index 8
         self.pages.addWidget(self.page_performance)  # Index 9
         self.pages.addWidget(self.page_settings)     # Index 10
+        self.pages.addWidget(self.page_process_scheduler)  # Index 11
 
         # Connect Dashboard quick navigation requests
         self.page_dashboard.navigate_requested.connect(self.navigate_to_page)
@@ -175,6 +179,9 @@ class MainWindow(QMainWindow):
                 ("Core Monitor", 1),
                 ("Process Monitor", 2),
                 ("Real CPU Stress", 3),
+            ]),
+            ("CPU SCHEDULING", [
+                ("Process Scheduler", 11),
             ]),
             ("VIRTUAL LAB", [
                 ("Virtual CPU Config", 4),

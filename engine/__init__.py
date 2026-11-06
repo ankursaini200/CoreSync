@@ -18,6 +18,13 @@ from engine.process_manager import (
     get_platform_protection_capabilities,
 )
 from engine.resource_guard import ResourceGuard, ResourceLimits
+from engine.process_scheduler import (
+    AlgorithmType,
+    PriorityDirection,
+    Process,
+    ProcessSchedulerSimulator,
+    SimulationResult,
+)
 
 __all__ = [
     "ProcessManager",
@@ -35,4 +42,9 @@ __all__ = [
     "set_process_affinity",
     "ResourceGuard",
     "ResourceLimits",
+    "ProcessSchedulerSimulator",
+    "Process",
+    "AlgorithmType",
+    "PriorityDirection",
+    "SimulationResult",
 ]
