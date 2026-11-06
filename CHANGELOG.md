@@ -4,6 +4,43 @@ All notable changes to the CoreSync project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.0] - Phase 9: Performance Analytics, Repeatable Benchmarking & Amdahl's Law
+
+### Added
+- **Performance Analytics Engine (`engine/analytics/`)**:
+  - `models.py`: Strict `MetricClassification` enum (`DIRECTLY_MEASURED`, `MATHEMATICALLY_DERIVED`, `ESTIMATED_RESIDUAL`, `SIMULATED_VIRTUAL`), `calculate_sample_statistics()` (mean, median, min, max, sample standard deviation with Bessel's correction $N-1$), and `ScalabilityMetrics` with division-by-zero protection.
+  - `amdahl.py`: Pure-Python `AmdahlCalculator` implementing Gene Amdahl's 1967 scalability law ($S = 1 / ((1 - P) + P / N)$), theoretical efficiency, serial bottleneck quantification ($1 - P$), maximum speedup asymptote ($S_{\max} = 1 / (1 - P)$), core sweeps, and educational documentation of real-world hardware limitations (strong scaling, cache saturation, asymmetric cores).
+  - `benchmarking.py`: Repeatable multi-run benchmark orchestrator for Data Parallelism, Task Parallelism, CPU Scheduling, and Virtual Lab subsystems. Includes warm-up pass isolation, cooperative cancellation, worker cleanup via `ProcessManager`, and verification certification.
+  - `history.py`: Local JSON persistence manager (`BenchmarkHistoryManager`) with corruption resilience, metadata indexing, session loading, and record deletion.
+- **Custom QPainter Visualization Widgets (`gui/components/analytics_chart.py`)**:
+  - `AmdahlCurveWidget`: Real-time vector plot of theoretical Amdahl speedup curve, linear ideal scaling ($S = N$), horizontal asymptote ($S_{\max}$), and active operating point with drop lines and efficiency readout.
+  - `ScalabilityChartWidget`: Empirical multi-worker speedup measurements plotted against linear ideal scaling with discrete data point callouts.
+  - `TimingBreakdownWidget`: Stacked horizontal bar chart depicting execution lifecycle timing overheads (Process Startup, Task Dispatch, Computation, Result Collection, Result Merge, Residual Overhead).
+- **Comprehensive GUI Workstation Page (`gui/performance.py` & `gui/analytics_runner.py`)**:
+  - 7 organized tabs:
+    1. Overview Dashboard (Dual Environment Paradigm, global rollups, provenance classification key).
+    2. Data Parallelism Analytics (worker sweeps, warm-up isolation, speedup/efficiency cards, scalability & timing charts).
+    3. Task Parallelism Analytics (DAG makespan, actual speedup vs sequential baseline, worker utilization, timing chart).
+    4. CPU Scheduling Analytics (cross-algorithm comparative matrix, optimal waiting/turnaround/CS cards).
+    5. Virtual Lab Analytics (multicore simulation, discrete tick elapsed duration, virtual core capacity).
+    6. Benchmark History (persistent session archive, detailed JSON inspection pane, deletion).
+    7. Amdahl's Law Calculator (interactive parallel fraction $P$ and processor count $N$ sliders with live curve updates).
+  - Background `AnalyticsBenchmarkRunnerThread` coordinating asynchronous execution without GUI freezes.
+- **Automated Tests**:
+  - `tests/test_performance_analytics.py`: 16 comprehensive unit tests covering hand-calculated formulas, division by zero, worker utilization clamping, sample statistics, Amdahl boundary conditions, monotonic curves, history CRUD, and multi-run executor sweeps.
+  - `tests/test_performance_gui.py`: 8 GUI integration tests covering tab navigation, slider updates, benchmark result rendering, and chart repaints.
+  - Total test suite now stands at **206 passing tests** (100% pass rate).
+
+## [0.8.0] - Phase 8 & 8.1: CPU Scheduling Simulator & Interactive Timeline
+
+### Added
+- **CPU Scheduling Subsystem (`engine/process_scheduler/`)**:
+  - 6 classical algorithms: FCFS, SJF, SRTF, Non-preemptive Priority, Preemptive Priority, Round Robin.
+  - Dynamic Priority Aging with deterministic FCFS tie-breaking.
+  - Context-switch overhead accounting.
+  - Visual Gantt chart canvas with zoom and pan controls.
+  - Algorithm comparison matrix dialog and workload presets.
+
 ## [0.7.0] - Phase 7: Unified Process Management, Worker Lifecycle, CPU Affinity and Resource Allocation
 
 ### Added

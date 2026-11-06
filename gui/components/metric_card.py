@@ -77,9 +77,19 @@ class MetricCard(QFrame):
         self.subtitle_label.setWordWrap(True)
         layout.addWidget(self.subtitle_label)
 
-    def set_value(self, value: str) -> None:
-        """Update the primary metric string."""
+    def set_value(
+        self,
+        value: str,
+        subtitle: Optional[str] = None,
+        theme: Optional[str] = None,
+        status_text: Optional[str] = None,
+    ) -> None:
+        """Update the primary metric string and optionally subtitle and status."""
         self.value_label.setText(value)
+        if subtitle is not None:
+            self.set_subtitle(subtitle)
+        if status_text is not None:
+            self.set_status(status_text, theme or "neutral")
 
     def set_subtitle(self, subtitle: str) -> None:
         """Update the context subtitle."""

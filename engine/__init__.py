@@ -25,6 +25,16 @@ from engine.process_scheduler import (
     ProcessSchedulerSimulator,
     SimulationResult,
 )
+from engine.analytics import (
+    AmdahlCalculator,
+    AmdahlPrediction,
+    BenchmarkEngineType,
+    BenchmarkHistoryManager,
+    BenchmarkSessionResult,
+    BenchmarkingEngine,
+    MetricClassification,
+    ScalabilityMetrics,
+)
 
 __all__ = [
     "ProcessManager",
@@ -47,4 +57,12 @@ __all__ = [
     "AlgorithmType",
     "PriorityDirection",
     "SimulationResult",
+    "MetricClassification",
+    "ScalabilityMetrics",
+    "AmdahlCalculator",
+    "AmdahlPrediction",
+    "BenchmarkEngineType",
+    "BenchmarkSessionResult",
+    "BenchmarkingEngine",
+    "BenchmarkHistoryManager",
 ]
