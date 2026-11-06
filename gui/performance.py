@@ -189,7 +189,7 @@ class PerformancePage(QWidget):
         p_desc = QLabel(
             "• DIRECTLY_MEASURED: High-resolution monotonic wall-clock elapsed time (time.perf_counter_ns), process RSS memory usage (RAM footprint), and OS CPU times (user + system).\n"
             "• MATHEMATICALLY_DERIVED: Strict mathematical formulas computed from measured inputs (Actual Speedup S = T_seq / T_par, Parallel Efficiency E = S / W, Concurrency Ratio P).\n"
-            "• ESTIMATED_RESIDUAL: Aggregate estimated non-compute residual overhead (T_residual = max(0, T_par - T_compute_effective)); does not independently measure individual micro-latencies.\n"
+            "• ESTIMATED_RESIDUAL: Elapsed non-compute idle gaps within the parallel execution window (T_idle_gaps = T_parallel_window - T_compute_interval_union).\n"
             "• SIMULATED_VIRTUAL: Discrete logical tick steps and virtual core capacity allocations generated inside the single-threaded Virtual Lab simulator (not real host telemetry)."
         )
         p_desc.setStyleSheet("color: #8b949e; line-height: 1.6; font-size: 12px;")
@@ -388,9 +388,9 @@ class PerformancePage(QWidget):
         m_grid.addWidget(self.dp_card_throughput, 0, 2)
 
         self.dp_card_overhead = MetricCard(
-            title="Aggregate Estimated Residual",
+            title="Elapsed Idle Gaps",
             value="-- ms",
-            subtitle="Aggregate non-compute: T_par - T_comp",
+            subtitle="Makespan - Compute Interval Union",
             status_text="Estimated Residual",
             status_theme="warning",
         )
@@ -1179,7 +1179,7 @@ class PerformancePage(QWidget):
         avg_overhead_ms = 0.0
         if all_recs:
             overheads = [
-                r.extra_metrics.get("aggregate_estimated_residual_s", r.extra_metrics.get("estimated_distribution_overhead_s", 0.0)) * 1000.0
+                r.extra_metrics.get("idle_gap_time_s", r.extra_metrics.get("aggregate_estimated_residual_s", 0.0)) * 1000.0
                 for r in all_recs
             ]
             avg_overhead_ms = max(0.0, sum(overheads) / len(overheads))
@@ -1190,7 +1190,7 @@ class PerformancePage(QWidget):
         self.dp_card_speedup.set_value(f"{mean_speedup:.2f} x", speedup_sub, v_theme, v_text)
         self.dp_card_efficiency.set_value(f"{mean_eff:.1f} %", eff_sub, v_theme, v_text)
         self.dp_card_throughput.set_value(f"{mean_thru:,.0f} it/s", f"{session.workload_name}", v_theme, v_text)
-        self.dp_card_overhead.set_value(f"{avg_overhead_ms:.2f} ms", "Aggregate difference: makespan - compute", "warning", "Estimated Residual")
+        self.dp_card_overhead.set_value(f"{avg_overhead_ms:.2f} ms", "Makespan - Compute Interval Union", "warning", "Estimated Residual")
 
         self.dp_status_lbl.setText(f"Benchmark completed in {session.total_wall_clock_s:.2f}s ({len(session.measured_records)} measured passes).")
 
@@ -1224,13 +1224,15 @@ class PerformancePage(QWidget):
             pts = [(1, 1.0, 100.0), (workers, last.speedup, last.efficiency_pct)]
             self.dp_chart_scalability.set_data(pts, title=f"Speedup ({session.workload_name})")
 
+            comp_union = last.extra_metrics.get("compute_interval_union_s", max(0.0, last.parallel_time_s - last.extra_metrics.get("idle_gap_time_s", 0.0)))
+            idle_gaps = last.extra_metrics.get("idle_gap_time_s", last.extra_metrics.get("aggregate_estimated_residual_s", 0.0))
             timings = {
                 "startup_s": last.extra_metrics.get("startup_s", 0.0),
                 "dispatch_s": last.extra_metrics.get("dispatch_s", 0.0),
-                "compute_s": max(0.0, last.parallel_time_s - last.extra_metrics.get("startup_s", 0.0) - last.extra_metrics.get("dispatch_s", 0.0)),
+                "compute_s": comp_union,
                 "collection_s": last.extra_metrics.get("collection_s", 0.0),
                 "merge_s": last.extra_metrics.get("merge_s", 0.0),
-                "residual_s": last.extra_metrics.get("estimated_distribution_overhead_s", 0.0),
+                "residual_s": idle_gaps,
             }
             self.dp_chart_timings.set_timings(timings)
 
@@ -1288,12 +1290,11 @@ class PerformancePage(QWidget):
             self.tp_chart_scalability.set_data(pts, title=f"Speedup ({session.workload_name})")
 
             # Timing breakdown
-            c_comp = last.extra_metrics.get("cumulative_worker_compute_time_s", last.extra_metrics.get("cumulative_compute_s", 0.0))
-            avg_worker_comp = c_comp / max(1, workers)
-            residual_s = last.extra_metrics.get("aggregate_estimated_residual_s", max(0.0, last.parallel_time_s - avg_worker_comp))
+            comp_union = last.extra_metrics.get("compute_interval_union_s", last.parallel_time_s)
+            idle_gaps = last.extra_metrics.get("idle_gap_time_s", max(0.0, last.parallel_time_s - comp_union))
             timings = {
-                "compute_s": avg_worker_comp,
-                "residual_s": max(0.0, residual_s),
+                "compute_s": comp_union,
+                "residual_s": max(0.0, idle_gaps),
             }
             self.tp_chart_timings.set_timings(timings)
 

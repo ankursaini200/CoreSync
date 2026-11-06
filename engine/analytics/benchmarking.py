@@ -15,6 +15,8 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional
 
+from engine.analytics.input_cloner import clone_benchmark_input
+from engine.analytics.interval_timing import compute_interval_metrics
 from engine.analytics.models import (
     MetricClassification,
     ScalabilityMetrics,
@@ -249,7 +251,7 @@ class BenchmarkingEngine:
                     if progress_cb:
                         progress_cb(pass_idx, total_passes, f"Running Warm-up Pass {w_idx + 1}/{warmup_runs}...")
 
-                    pass_data = data.copy() if hasattr(data, "copy") else data
+                    pass_data = clone_benchmark_input(data)
                     b_res = executor.run_benchmark(
                         op_id=op_id,
                         data=pass_data,
@@ -258,7 +260,20 @@ class BenchmarkingEngine:
                     if not b_res.verification.passed:
                         all_verified = False
 
-                    residual_overhead = max(0.0, b_res.timings.estimated_distribution_overhead_s)
+                    w_results = getattr(b_res, "worker_results", [])
+                    intervals = [
+                        (r.worker_start_time, r.worker_finish_time)
+                        for r in w_results
+                        if getattr(r, "worker_start_time", 0.0) > 0 and getattr(r, "worker_finish_time", 0.0) > 0
+                    ]
+                    comp_times = [r.compute_time_s for r in w_results]
+                    int_metrics = compute_interval_metrics(
+                        window_start=0.0,
+                        window_end=b_res.parallel_time_s,
+                        worker_intervals=intervals,
+                        raw_compute_durations=comp_times,
+                    )
+
                     warmup_records.append(
                         BenchmarkIterationRecord(
                             iteration_idx=w_idx + 1,
@@ -274,10 +289,15 @@ class BenchmarkingEngine:
                                 "dispatch_s": b_res.timings.dispatch_s,
                                 "collection_s": b_res.timings.collection_s,
                                 "merge_s": b_res.timings.merge_s,
-                                "aggregate_estimated_residual_s": residual_overhead,
-                                "estimated_distribution_overhead_s": residual_overhead,
+                                "parallel_makespan_s": b_res.parallel_time_s,
+                                "aggregate_worker_compute_time_s": int_metrics.aggregate_worker_compute_time_s,
+                                "compute_interval_union_s": int_metrics.compute_interval_union_s,
+                                "idle_gap_time_s": int_metrics.idle_gap_time_s,
+                                "aggregate_estimated_residual_s": int_metrics.idle_gap_time_s,
+                                "estimated_distribution_overhead_s": int_metrics.idle_gap_time_s,
+                                "concurrency_density": int_metrics.concurrency_density,
                                 "residual_classification": MetricClassification.ESTIMATED_RESIDUAL.value,
-                                "residual_notes": "Aggregate residual derived via T_dispatch + max(0, T_collection - max_worker_compute)",
+                                "residual_notes": "Elapsed idle gaps calculated as parallel_makespan - compute_interval_union.",
                             },
                         )
                     )
@@ -292,7 +312,7 @@ class BenchmarkingEngine:
                     if progress_cb:
                         progress_cb(pass_idx, total_passes, f"Running Benchmark Iteration {m_idx + 1}/{iterations}...")
 
-                    pass_data = data.copy() if hasattr(data, "copy") else data
+                    pass_data = clone_benchmark_input(data)
                     b_res = executor.run_benchmark(
                         op_id=op_id,
                         data=pass_data,
@@ -301,7 +321,20 @@ class BenchmarkingEngine:
                     if not b_res.verification.passed:
                         all_verified = False
 
-                    residual_overhead = max(0.0, b_res.timings.estimated_distribution_overhead_s)
+                    w_results = getattr(b_res, "worker_results", [])
+                    intervals = [
+                        (r.worker_start_time, r.worker_finish_time)
+                        for r in w_results
+                        if getattr(r, "worker_start_time", 0.0) > 0 and getattr(r, "worker_finish_time", 0.0) > 0
+                    ]
+                    comp_times = [r.compute_time_s for r in w_results]
+                    int_metrics = compute_interval_metrics(
+                        window_start=0.0,
+                        window_end=b_res.parallel_time_s,
+                        worker_intervals=intervals,
+                        raw_compute_durations=comp_times,
+                    )
+
                     measured_records.append(
                         BenchmarkIterationRecord(
                             iteration_idx=m_idx + 1,
@@ -317,10 +350,15 @@ class BenchmarkingEngine:
                                 "dispatch_s": b_res.timings.dispatch_s,
                                 "collection_s": b_res.timings.collection_s,
                                 "merge_s": b_res.timings.merge_s,
-                                "aggregate_estimated_residual_s": residual_overhead,
-                                "estimated_distribution_overhead_s": residual_overhead,
+                                "parallel_makespan_s": b_res.parallel_time_s,
+                                "aggregate_worker_compute_time_s": int_metrics.aggregate_worker_compute_time_s,
+                                "compute_interval_union_s": int_metrics.compute_interval_union_s,
+                                "idle_gap_time_s": int_metrics.idle_gap_time_s,
+                                "aggregate_estimated_residual_s": int_metrics.idle_gap_time_s,
+                                "estimated_distribution_overhead_s": int_metrics.idle_gap_time_s,
+                                "concurrency_density": int_metrics.concurrency_density,
                                 "residual_classification": MetricClassification.ESTIMATED_RESIDUAL.value,
-                                "residual_notes": "Aggregate residual derived via T_dispatch + max(0, T_collection - max_worker_compute)",
+                                "residual_notes": "Elapsed idle gaps calculated as parallel_makespan - compute_interval_union.",
                             },
                         )
                     )
@@ -441,15 +479,27 @@ class BenchmarkingEngine:
                     if progress_cb:
                         progress_cb(pass_idx, total_passes, f"Running Warm-up Pass {w_idx + 1}/{warmup_runs}...")
 
-                    graph = _make_graph()
+                    graph = clone_benchmark_input(_make_graph())
                     b_res = executor.run_benchmark(graph, worker_count=worker_count)
                     if not b_res.sequential_verification_passed:
                         all_verified = False
 
                     eff_pct = (b_res.actual_speedup / worker_count * 100.0) if worker_count > 0 else 0.0
                     throughput = (b_res.completed_tasks / b_res.makespan_s) if b_res.makespan_s > 0 else 0.0
-                    avg_w_comp = b_res.cumulative_compute_s / max(1, worker_count)
-                    res_overhead = max(0.0, b_res.makespan_s - avg_w_comp)
+
+                    t_results = list(getattr(b_res, "task_results", {}).values())
+                    intervals = [
+                        (r.start_timestamp, r.finish_timestamp)
+                        for r in t_results
+                        if getattr(r, "start_timestamp", 0.0) > 0 and getattr(r, "finish_timestamp", 0.0) > 0
+                    ]
+                    comp_times = [r.compute_time_s for r in t_results]
+                    int_metrics = compute_interval_metrics(
+                        window_start=0.0,
+                        window_end=b_res.makespan_s,
+                        worker_intervals=intervals,
+                        raw_compute_durations=comp_times,
+                    )
 
                     warmup_records.append(
                         BenchmarkIterationRecord(
@@ -462,12 +512,18 @@ class BenchmarkingEngine:
                             throughput=throughput,
                             verification_passed=b_res.sequential_verification_passed,
                             extra_metrics={
+                                "parallel_makespan_s": b_res.makespan_s,
                                 "parallelism_ratio": b_res.parallelism_ratio,
                                 "worker_utilization_pct": b_res.worker_utilization_pct,
-                                "cumulative_compute_s": b_res.cumulative_compute_s,
-                                "aggregate_estimated_residual_s": res_overhead,
-                                "estimated_distribution_overhead_s": res_overhead,
+                                "aggregate_worker_compute_time_s": int_metrics.aggregate_worker_compute_time_s,
+                                "cumulative_compute_s": int_metrics.aggregate_worker_compute_time_s,
+                                "compute_interval_union_s": int_metrics.compute_interval_union_s,
+                                "idle_gap_time_s": int_metrics.idle_gap_time_s,
+                                "aggregate_estimated_residual_s": int_metrics.idle_gap_time_s,
+                                "estimated_distribution_overhead_s": int_metrics.idle_gap_time_s,
+                                "concurrency_density": int_metrics.concurrency_density,
                                 "residual_classification": MetricClassification.ESTIMATED_RESIDUAL.value,
+                                "residual_notes": "Elapsed idle gaps calculated as parallel_makespan - compute_interval_union.",
                             },
                         )
                     )
@@ -481,15 +537,27 @@ class BenchmarkingEngine:
                     if progress_cb:
                         progress_cb(pass_idx, total_passes, f"Running Benchmark Iteration {m_idx + 1}/{iterations}...")
 
-                    graph = _make_graph()
+                    graph = clone_benchmark_input(_make_graph())
                     b_res = executor.run_benchmark(graph, worker_count=worker_count)
                     if not b_res.sequential_verification_passed:
                         all_verified = False
 
                     eff_pct = (b_res.actual_speedup / worker_count * 100.0) if worker_count > 0 else 0.0
                     throughput = (b_res.completed_tasks / b_res.makespan_s) if b_res.makespan_s > 0 else 0.0
-                    avg_w_comp = b_res.cumulative_compute_s / max(1, worker_count)
-                    res_overhead = max(0.0, b_res.makespan_s - avg_w_comp)
+
+                    t_results = list(getattr(b_res, "task_results", {}).values())
+                    intervals = [
+                        (r.start_timestamp, r.finish_timestamp)
+                        for r in t_results
+                        if getattr(r, "start_timestamp", 0.0) > 0 and getattr(r, "finish_timestamp", 0.0) > 0
+                    ]
+                    comp_times = [r.compute_time_s for r in t_results]
+                    int_metrics = compute_interval_metrics(
+                        window_start=0.0,
+                        window_end=b_res.makespan_s,
+                        worker_intervals=intervals,
+                        raw_compute_durations=comp_times,
+                    )
 
                     measured_records.append(
                         BenchmarkIterationRecord(
@@ -502,12 +570,18 @@ class BenchmarkingEngine:
                             throughput=throughput,
                             verification_passed=b_res.sequential_verification_passed,
                             extra_metrics={
+                                "parallel_makespan_s": b_res.makespan_s,
                                 "parallelism_ratio": b_res.parallelism_ratio,
                                 "worker_utilization_pct": b_res.worker_utilization_pct,
-                                "cumulative_compute_s": b_res.cumulative_compute_s,
-                                "aggregate_estimated_residual_s": res_overhead,
-                                "estimated_distribution_overhead_s": res_overhead,
+                                "aggregate_worker_compute_time_s": int_metrics.aggregate_worker_compute_time_s,
+                                "cumulative_compute_s": int_metrics.aggregate_worker_compute_time_s,
+                                "compute_interval_union_s": int_metrics.compute_interval_union_s,
+                                "idle_gap_time_s": int_metrics.idle_gap_time_s,
+                                "aggregate_estimated_residual_s": int_metrics.idle_gap_time_s,
+                                "estimated_distribution_overhead_s": int_metrics.idle_gap_time_s,
+                                "concurrency_density": int_metrics.concurrency_density,
                                 "residual_classification": MetricClassification.ESTIMATED_RESIDUAL.value,
+                                "residual_notes": "Elapsed idle gaps calculated as parallel_makespan - compute_interval_union.",
                             },
                         )
                     )

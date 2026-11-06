@@ -8,7 +8,9 @@ Amdahl scalability analysis, and statistical evaluation.
 from dataclasses import dataclass, field
 from enum import Enum
 import math
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+from engine.analytics.interval_timing import compute_interval_metrics, ExecutionIntervalMetrics
 
 
 class MetricClassification(str, Enum):
@@ -144,15 +146,14 @@ class ScalabilityMetrics:
     collection_s: float = 0.0
     merge_s: float = 0.0
     worker_compute_times: List[float] = field(default_factory=list)
+    worker_intervals: List[Tuple[float, float]] = field(default_factory=list)
 
     @property
     def speedup(self) -> float:
         """Amdahl Speedup: S = T_sequential / T_parallel.
 
         Classification: MATHEMATICALLY_DERIVED.
-        Measured Inputs: sequential_time_s (baseline wall-clock elapsed time),
-                         parallel_time_s (parallel wall-clock makespan).
-        Returns 0.0 if parallel time is zero or negative.
+        Measured Inputs: sequential_time_s, parallel_time_s.
         """
         if self.parallel_time_s <= 0.0 or self.sequential_time_s < 0.0:
             return 0.0
@@ -163,8 +164,6 @@ class ScalabilityMetrics:
         """Parallel Efficiency: E = Speedup / WorkerCount.
 
         Classification: MATHEMATICALLY_DERIVED.
-        Measured/Configured Inputs: speedup (derived), worker_count (configured).
-        Returns 0.0 if worker count is zero or negative.
         """
         if self.worker_count <= 0 or self.speedup <= 0.0:
             return 0.0
@@ -180,21 +179,10 @@ class ScalabilityMetrics:
         """Throughput: Completed Work Units / Total Parallel Execution Time.
 
         Classification: MATHEMATICALLY_DERIVED.
-        Measured Inputs: work_units (counted output items),
-                         parallel_time_s (wall-clock makespan).
         """
         if self.parallel_time_s <= 0.0 or self.work_units <= 0:
             return 0.0
         return self.work_units / self.parallel_time_s
-
-    @property
-    def total_computation_time_s(self) -> float:
-        """Cumulative elapsed computation time across all worker processes.
-
-        Classification: DIRECTLY_MEASURED (sum of worker monotonic compute timers).
-        Measured Inputs: worker_compute_times list.
-        """
-        return sum(self.worker_compute_times)
 
     @property
     def max_worker_compute_s(self) -> float:
@@ -218,13 +206,12 @@ class ScalabilityMetrics:
         """Worker Utilization: U = (Cumulative Compute / (WorkerCount * Makespan)) * 100%.
 
         Classification: MATHEMATICALLY_DERIVED.
-        Measured Inputs: total_computation_time_s, worker_count, parallel_time_s.
         Bounded strictly between 0% and 100%.
         """
         if self.worker_count <= 0 or self.parallel_time_s <= 0.0:
             return 0.0
         theoretical_capacity = self.worker_count * self.parallel_time_s
-        u = (self.total_computation_time_s / theoretical_capacity) * 100.0
+        u = (self.aggregate_worker_compute_time_s / theoretical_capacity) * 100.0
         return max(0.0, min(100.0, u))
 
     @property
@@ -232,9 +219,6 @@ class ScalabilityMetrics:
         """Load Imbalance: (Max Worker Time - Avg Worker Time) / Avg Worker Time.
 
         Classification: MATHEMATICALLY_DERIVED.
-        Measured Inputs: max_worker_compute_s, avg_worker_compute_s.
-        Quantifies workload skew across worker processes.
-        A perfectly balanced workload yields 0.0 (0%).
         """
         avg_w = self.avg_worker_compute_s
         if avg_w <= 0.0:
@@ -247,26 +231,65 @@ class ScalabilityMetrics:
         return self.load_imbalance * 100.0
 
     @property
-    def aggregate_estimated_residual_s(self) -> float:
-        """Aggregate Estimated Residual Overhead.
+    def parallel_makespan_s(self) -> float:
+        """Elapsed parallel makespan in wall-clock seconds."""
+        return max(0.0, self.parallel_time_s)
 
-        Formula: max(0.0, parallel_time_s - max_worker_compute_s).
-        Classification: ESTIMATED_RESIDUAL (derived aggregate residual estimate).
+    @property
+    def aggregate_worker_compute_time_s(self) -> float:
+        """Cumulative worker computation time across all workers, measured in worker-seconds (W*s).
 
-        Important: This measures the residual wall-clock difference between the critical-path
-        worker computation and total makespan. It encompasses OS scheduling jitter, worker process
-        wake-up, queue polling delays, and IPC serialization/transit collectively. It is NOT
-        an independent measurement of each sub-stage, and is strictly clamped >= 0.0 to prevent
-        negative residual values.
+        Classification: DIRECTLY_MEASURED.
+        Measured Inputs: sum of per-worker monotonic compute timers.
+        Note: When workers execute concurrently, aggregate worker compute time may
+        exceed parallel makespan. It must NOT be subtracted directly from parallel makespan.
         """
-        if self.parallel_time_s <= 0.0 or not self.worker_compute_times:
+        return sum(self.worker_compute_times)
+
+    @property
+    def total_computation_time_s(self) -> float:
+        """Alias for aggregate_worker_compute_time_s (worker-seconds)."""
+        return self.aggregate_worker_compute_time_s
+
+    @property
+    def compute_interval_union_s(self) -> float:
+        """Elapsed wall-clock time during which at least one worker was actively computing.
+
+        Classification: DIRECTLY_MEASURED (from worker monotonic start/finish intervals).
+        If detailed worker start/finish intervals are available, computed via exact interval union.
+        Otherwise falls back to max_worker_compute_s as a conservative single-worker bound.
+        """
+        if self.worker_intervals:
+            m = compute_interval_metrics(
+                window_start=0.0,
+                window_end=self.parallel_time_s,
+                worker_intervals=self.worker_intervals,
+                raw_compute_durations=self.worker_compute_times,
+            )
+            return m.compute_interval_union_s
+        return min(self.parallel_time_s, self.max_worker_compute_s)
+
+    @property
+    def idle_gap_time_s(self) -> float:
+        """Elapsed wall-clock non-compute idle gaps within the parallel execution window.
+
+        Formula: max(0.0, parallel_makespan_s - compute_interval_union_s).
+        Classification: ESTIMATED_RESIDUAL (gap interval within parallel window).
+        Bounded strictly >= 0.0 and <= parallel_makespan_s.
+        """
+        if self.parallel_time_s <= 0.0:
             return 0.0
-        return max(0.0, self.parallel_time_s - self.max_worker_compute_s)
+        return max(0.0, self.parallel_time_s - self.compute_interval_union_s)
+
+    @property
+    def aggregate_estimated_residual_s(self) -> float:
+        """Compatibility alias for idle_gap_time_s."""
+        return self.idle_gap_time_s
 
     @property
     def estimated_distribution_overhead_s(self) -> float:
-        """Legacy compatibility alias for aggregate_estimated_residual_s."""
-        return self.aggregate_estimated_residual_s
+        """Legacy compatibility alias for idle_gap_time_s."""
+        return self.idle_gap_time_s
 
     @property
     def provenance_map(self) -> Dict[str, Dict[str, str]]:
@@ -282,7 +305,21 @@ class ScalabilityMetrics:
             },
             "total_computation_time_s": {
                 "classification": MetricClassification.DIRECTLY_MEASURED.value,
-                "input_source": "Sum of per-worker monotonic kernel compute timers",
+                "input_source": "Sum of per-worker monotonic kernel compute timers (worker-seconds, W*s)",
+            },
+            "aggregate_worker_compute_time_s": {
+                "classification": MetricClassification.DIRECTLY_MEASURED.value,
+                "input_source": "Sum of per-worker monotonic kernel compute timers (worker-seconds, W*s)",
+            },
+            "compute_interval_union_s": {
+                "classification": MetricClassification.DIRECTLY_MEASURED.value,
+                "input_source": "Elapsed wall-clock time during which at least one worker was actively computing",
+            },
+            "idle_gap_time_s": {
+                "classification": MetricClassification.ESTIMATED_RESIDUAL.value,
+                "formula": "max(0.0, parallel_makespan_s - compute_interval_union_s)",
+                "measured_inputs": "parallel_makespan_s, compute_interval_union_s",
+                "notes": "Elapsed non-compute idle gaps within the parallel window.",
             },
             "speedup": {
                 "classification": MetricClassification.MATHEMATICALLY_DERIVED.value,
@@ -329,6 +366,9 @@ class ScalabilityMetrics:
             "efficiency_pct": round(self.efficiency_pct, 2),
             "throughput_items_per_s": round(self.throughput_items_per_s, 2),
             "total_computation_time_s": round(self.total_computation_time_s, 6),
+            "aggregate_worker_compute_time_s": round(self.aggregate_worker_compute_time_s, 6),
+            "compute_interval_union_s": round(self.compute_interval_union_s, 6),
+            "idle_gap_time_s": round(self.idle_gap_time_s, 6),
             "startup_overhead_s": round(self.startup_s, 6),
             "dispatch_overhead_s": round(self.dispatch_s, 6),
             "collection_window_s": round(self.collection_s, 6),
