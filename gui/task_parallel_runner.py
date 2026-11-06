@@ -5,10 +5,12 @@ import multiprocessing as mp
 from typing import Any, Optional
 from PySide6.QtCore import QThread, Signal
 
+from engine.affinity import AffinityPolicy
 from engine.task_parallel.executor import TaskParallelExecutor
 from engine.task_parallel.task import Task, TaskStatus
 from engine.task_parallel.task_graph import TaskGraph
 from engine.task_parallel.task_queue import SchedulingPolicy
+from utils.cpu_topology import CPUTopology
 
 logger = logging.getLogger("CoreSync.GUI.TaskParallelRunner")
 
@@ -28,6 +30,9 @@ class TaskParallelRunnerThread(QThread):
         self._worker_count: int = 4
         self._policy: SchedulingPolicy = SchedulingPolicy.FIFO
         self._run_benchmark: bool = True
+        self._affinity_policy: AffinityPolicy = AffinityPolicy.AUTOMATIC
+        self._custom_cpus: Optional[list] = None
+        self._topology: Optional[CPUTopology] = None
         self._cancel_event = mp.get_context("spawn").Event()
         self._executor = TaskParallelExecutor()
 
@@ -37,12 +42,18 @@ class TaskParallelRunnerThread(QThread):
         worker_count: int,
         policy: SchedulingPolicy = SchedulingPolicy.FIFO,
         run_benchmark: bool = True,
+        affinity_policy: AffinityPolicy = AffinityPolicy.AUTOMATIC,
+        custom_cpus: Optional[list] = None,
+        topology: Optional[CPUTopology] = None,
     ) -> None:
         """Set execution parameters before starting thread."""
         self._graph = graph
         self._worker_count = worker_count
         self._policy = policy
         self._run_benchmark = run_benchmark
+        self._affinity_policy = affinity_policy
+        self._custom_cpus = custom_cpus
+        self._topology = topology
         self._cancel_event.clear()
 
     def cancel(self) -> None:
@@ -78,6 +89,9 @@ class TaskParallelRunnerThread(QThread):
                     worker_status_callback=on_worker_status,
                     progress_callback=on_progress,
                     cancel_event=self._cancel_event,
+                    affinity_policy=self._affinity_policy,
+                    custom_cpus=self._custom_cpus,
+                    topology=self._topology,
                 )
             else:
                 result = self._executor.run_dag(
@@ -88,6 +102,9 @@ class TaskParallelRunnerThread(QThread):
                     worker_status_callback=on_worker_status,
                     progress_callback=on_progress,
                     cancel_event=self._cancel_event,
+                    affinity_policy=self._affinity_policy,
+                    custom_cpus=self._custom_cpus,
+                    topology=self._topology,
                 )
 
             if self._cancel_event.is_set():

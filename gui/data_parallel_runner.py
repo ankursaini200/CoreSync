@@ -6,11 +6,13 @@ import time
 from typing import Any, Optional
 from PySide6.QtCore import QThread, Signal
 
+from engine.affinity import AffinityPolicy
 from engine.data_parallel.executor import (
     DataParallelBenchmarkResult,
     DataParallelExecutor,
 )
 from engine.data_parallel.operations import generate_dataset
+from utils.cpu_topology import CPUTopology
 
 logger = logging.getLogger("CoreSync.GUI.DataParallelRunner")
 
@@ -29,6 +31,9 @@ class DataParallelRunnerThread(QThread):
         self._worker_count: int = 4
         self._seed: int = 42
         self._warm_up: bool = False
+        self._affinity_policy: AffinityPolicy = AffinityPolicy.AUTOMATIC
+        self._custom_cpus: Optional[list] = None
+        self._topology: Optional[CPUTopology] = None
         self._cancel_event = mp.get_context("spawn").Event()
         self._executor = DataParallelExecutor()
 
@@ -39,6 +44,9 @@ class DataParallelRunnerThread(QThread):
         worker_count: int,
         seed: int = 42,
         warm_up: bool = False,
+        affinity_policy: AffinityPolicy = AffinityPolicy.AUTOMATIC,
+        custom_cpus: Optional[list] = None,
+        topology: Optional[CPUTopology] = None,
     ) -> None:
         """Set benchmark parameters before starting thread."""
         self._op_id = op_id
@@ -46,6 +54,9 @@ class DataParallelRunnerThread(QThread):
         self._worker_count = worker_count
         self._seed = seed
         self._warm_up = warm_up
+        self._affinity_policy = affinity_policy
+        self._custom_cpus = custom_cpus
+        self._topology = topology
         self._cancel_event.clear()
 
     def cancel(self) -> None:
@@ -73,6 +84,9 @@ class DataParallelRunnerThread(QThread):
                 progress_callback=on_progress,
                 cancel_event=self._cancel_event,
                 warm_up=self._warm_up,
+                affinity_policy=self._affinity_policy,
+                custom_cpus=self._custom_cpus,
+                topology=self._topology,
             )
 
             if self._cancel_event.is_set():

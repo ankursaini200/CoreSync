@@ -11,6 +11,12 @@ import signal
 import time
 from typing import Callable, Dict, List, Optional
 
+from engine.affinity import (
+    AffinityPolicy,
+    resolve_worker_affinities,
+    set_process_affinity,
+)
+from engine.process_manager import ProcessManager, WorkerLifecycleStatus
 from engine.task_parallel.dispatcher import TaskDispatcher
 from engine.task_parallel.operations import execute_task_kernel
 from engine.task_parallel.result_collector import ResultCollector, TaskDAGResult
@@ -23,6 +29,7 @@ from engine.task_parallel.worker import (
     TaskParcel,
     task_parallel_worker_loop,
 )
+from utils.cpu_topology import CPUTopology
 
 logger = logging.getLogger("CoreSync.TaskParallel.Executor")
 
@@ -35,6 +42,7 @@ class TaskParallelExecutor:
         self._active_workers: List[mp.Process] = []
         self._active_stop_event: Optional[mp.Event] = None
         self._cancel_requested: bool = False
+        self._pm: Optional[ProcessManager] = None
 
     def cancel_active_execution(self) -> None:
         """Cooperatively request immediate cancellation of running tasks."""
@@ -132,6 +140,10 @@ class TaskParallelExecutor:
         worker_status_callback: Optional[Callable[[int, int, str], None]] = None,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         cancel_event: Optional[mp.Event] = None,
+        affinity_policy: AffinityPolicy = AffinityPolicy.AUTOMATIC,
+        custom_cpus: Optional[List[int]] = None,
+        manual_affinity: Optional[Dict[int, List[int]]] = None,
+        topology: Optional[CPUTopology] = None,
     ) -> TaskDAGResult:
         """Run full end-to-end benchmark: sequential baseline, parallel run, and correctness verification.
 
@@ -161,6 +173,10 @@ class TaskParallelExecutor:
             progress_callback=progress_callback,
             cancel_event=cancel_event,
             sequential_time_s=seq_result.makespan_s,
+            affinity_policy=affinity_policy,
+            custom_cpus=custom_cpus,
+            manual_affinity=manual_affinity,
+            topology=topology,
         )
 
         # 3. Output correctness comparison between sequential and parallel executions
@@ -204,6 +220,10 @@ class TaskParallelExecutor:
         cancel_event: Optional[mp.Event] = None,
         sequential_time_s: float = 0.0,
         sequential_verification_passed: bool = False,
+        affinity_policy: AffinityPolicy = AffinityPolicy.AUTOMATIC,
+        custom_cpus: Optional[List[int]] = None,
+        manual_affinity: Optional[Dict[int, List[int]]] = None,
+        topology: Optional[CPUTopology] = None,
     ) -> TaskDAGResult:
         """Execute a validated TaskGraph to completion using a pool of spawn worker processes.
 
@@ -215,6 +235,12 @@ class TaskParallelExecutor:
             worker_status_callback: Called on worker state changes: (worker_id, pid, status_msg).
             progress_callback: Called periodically: (completed_count, total_count, message).
             cancel_event: External multiprocessing.Event to monitor for user cancellation.
+            sequential_time_s: Single-threaded sequential reference runtime.
+            sequential_verification_passed: Whether sequential run produced valid output.
+            affinity_policy: CPU allocation and core pinning policy.
+            custom_cpus: Explicit list of logical CPUs for CUSTOM policy.
+            manual_affinity: Worker-to-CPUs dictionary for MANUAL policy.
+            topology: System CPU topology for hybrid P-core/E-core filtering.
 
         Returns:
             TaskDAGResult containing full metrics, verifications, and execution logs.
@@ -237,21 +263,35 @@ class TaskParallelExecutor:
         dispatcher = TaskDispatcher(worker_count=actual_worker_count, policy=policy)
         collector = ResultCollector(worker_count=actual_worker_count)
 
-        # 3. Create IPC channels and worker pool
-        task_queue = self._ctx.Queue()
-        result_queue = self._ctx.Queue()
-        stop_event = self._ctx.Event()
+        # 3. Create IPC channels, ProcessManager, and worker pool with CPU affinity
+        affinities = resolve_worker_affinities(
+            worker_count=actual_worker_count,
+            policy=affinity_policy,
+            topology=topology,
+            manual_mapping=manual_affinity,
+            custom_cpus=custom_cpus,
+        )
+
+        pm = ProcessManager(start_method="spawn")
+        self._pm = pm
+        task_queue = pm.ctx.Queue()
+        result_queue = pm.ctx.Queue()
+        stop_event = pm.cancel_event
         self._active_stop_event = stop_event
 
         workers: List[mp.Process] = []
         try:
             for w_id in range(actual_worker_count):
-                p = self._ctx.Process(
+                aff = affinities[w_id] if w_id < len(affinities) else []
+                p = pm.spawn_worker(
                     target=task_parallel_worker_loop,
                     args=(task_queue, result_queue, stop_event),
+                    name=f"CoreSync-Task-Worker-{w_id}",
+                    engine_name="TaskParallel",
+                    worker_id=f"TP-{w_id}",
+                    affinity_cpus=aff,
                     daemon=True,
                 )
-                p.start()
                 workers.append(p)
                 dispatcher.register_worker_pid(w_id, p.pid)
                 if worker_status_callback:
@@ -291,6 +331,11 @@ class TaskParallelExecutor:
                     task_to_run, assigned_w_id = dispatch_pair
 
                     task_to_run.transition_to(TaskStatus.RUNNING)
+                    pm.update_worker_status(
+                        f"TP-{assigned_w_id}",
+                        WorkerLifecycleStatus.RUNNING,
+                        task_or_chunk_id=task_to_run.task_id,
+                    )
                     if task_status_callback:
                         task_status_callback(task_to_run, TaskStatus.RUNNING, None)
                     if worker_status_callback:
@@ -357,6 +402,7 @@ class TaskParallelExecutor:
                 finished_task = graph.tasks.get(res.task_id)
                 if finished_task:
                     dispatcher.on_worker_finished(res.worker_id, finished_task.task_id)
+                    pm.update_worker_status(f"TP-{res.worker_id}", WorkerLifecycleStatus.IDLE)
                     if worker_status_callback:
                         worker_status_callback(res.worker_id, res.worker_pid, "Idle")
 
@@ -436,48 +482,50 @@ class TaskParallelExecutor:
 
     def _cleanup_workers(self, workers: List[mp.Process], timeout: float = 1.0) -> None:
         """Strict 4-stage worker shutdown: cooperative join -> SIGTERM -> SIGKILL -> final join."""
-        if not workers:
-            return
+        if self._pm:
+            self._pm.terminate_all(
+                coop_timeout=min(0.2, timeout * 0.4),
+                term_timeout=min(0.3, timeout * 0.4),
+                kill_timeout=0.2,
+            )
+            self._pm = None
+        elif workers:
+            # Fallback direct termination
+            deadline = time.time() + (timeout * 0.4)
+            for p in workers:
+                if p.is_alive():
+                    remaining = max(0.02, deadline - time.time())
+                    p.join(timeout=remaining)
 
-        # Stage 1: Cooperative join
-        deadline = time.time() + (timeout * 0.4)
-        for p in workers:
-            if p.is_alive():
-                remaining = max(0.02, deadline - time.time())
-                p.join(timeout=remaining)
+            alive = [p for p in workers if p.is_alive()]
+            if not alive:
+                return
 
-        alive = [p for p in workers if p.is_alive()]
-        if not alive:
-            return
+            for p in alive:
+                try:
+                    p.terminate()
+                except Exception:
+                    pass
 
-        # Stage 2: SIGTERM
-        for p in alive:
-            try:
-                p.terminate()
-            except Exception:
-                pass
+            deadline = time.time() + (timeout * 0.3)
+            for p in alive:
+                if p.is_alive():
+                    remaining = max(0.02, deadline - time.time())
+                    p.join(timeout=remaining)
 
-        deadline = time.time() + (timeout * 0.3)
-        for p in alive:
-            if p.is_alive():
-                remaining = max(0.02, deadline - time.time())
-                p.join(timeout=remaining)
+            alive = [p for p in alive if p.is_alive()]
+            if not alive:
+                return
 
-        alive = [p for p in alive if p.is_alive()]
-        if not alive:
-            return
+            for p in alive:
+                try:
+                    p.kill()
+                except Exception:
+                    pass
 
-        # Stage 3: SIGKILL
-        for p in alive:
-            try:
-                p.kill()
-            except Exception:
-                pass
-
-        # Stage 4: Final join to reap zombies
-        for p in alive:
-            try:
-                p.join(timeout=0.2)
-            except Exception:
-                pass
+            for p in alive:
+                try:
+                    p.join(timeout=0.2)
+                except Exception:
+                    pass
 

@@ -4,6 +4,38 @@ All notable changes to the CoreSync project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.0] - Phase 7: Unified Process Management, Worker Lifecycle, CPU Affinity and Resource Allocation
+
+### Added
+- **Unified Process Manager (`engine/process_manager.py`)**:
+  - Centralized worker lifecycle coordinator tracking `PID`, `Parent PID`, `Worker ID`, `Engine Name`, `Task/Chunk ID`, `Assigned CPU Affinity`, `Actual CPU Affinity`, `Status`, `Start/End Times`, `CPU %`, `Memory RSS (MB)`, `Exit Code`, and `Error Message`.
+  - Integrated 4-stage shutdown protocol: Cooperative Cancellation (`Event.set()`) $\rightarrow$ Graceful `SIGTERM` $\rightarrow$ Forceful `SIGKILL` $\rightarrow$ Final `join()` to reap zombie processes.
+  - Thread-safe global active worker registry accessible to GUI monitoring threads and background services.
+  - Cross-platform orphan process detection (`detect_orphans()`) and automated termination (`reap_orphans()`) restricted strictly to CoreSync worker process signatures.
+- **CPU Affinity Management Subsystem (`engine/affinity.py`)**:
+  - Cross-platform affinity assignment and inspection (`set_process_affinity()`, `get_process_affinity()`, `get_available_system_cpus()`).
+  - Native Linux support using `os.sched_setaffinity` and `os.sched_getaffinity` with `psutil` fallback.
+  - Windows support using `psutil.Process().cpu_affinity()`.
+  - Graceful macOS (Darwin) fallback acknowledging kernel lack of thread/process pinning without silently fabricating success.
+  - Configurable worker allocation policies: `AUTOMATIC`, `ROUND_ROBIN`, `ONE_TO_ONE`, `MANUAL`, `CUSTOM`, `P_CORE_ONLY`, and `E_CORE_ONLY`.
+  - Verified hybrid processor filtering restricting workers to P-cores or E-cores only when reliable PMU/sysfs topology detection exists.
+- **Resource Management & Safety Safeguards (`engine/resource_guard.py`)**:
+  - Dynamic worker concurrency bounds (`clamp_worker_count`) preventing accidental infinite process creation.
+  - System memory headroom verification (`check_memory_headroom`) before spawning worker pools.
+  - Heavy system load detection (`is_system_under_heavy_load`).
+  - Worker memory threshold inspection (`check_worker_limit_violation`).
+- **Engine Integrations**:
+  - `DataParallelExecutor`: Integrated with `ProcessManager` and `AffinityPolicy` (automatic, round-robin, one-to-one, P-core, E-core). Affinity applied before chunk execution starts.
+  - `TaskParallelExecutor`: Integrated with `ProcessManager` and `AffinityPolicy`. Workers spawned with explicit affinity, dynamically tracked across DAG tasks, and cleaned up cleanly.
+  - `RealCPUStressGenerator`: Refactored to utilize `ProcessManager` with engine name `CPUStress`, support core pinning policies, and cleanly reap all stress workers.
+- **GUI Updates**:
+  - `RealProcessPage` (`gui/real_system/process_view.py`): Added dedicated CoreSync Active Workers management card with live worker table (PID, PPID, Engine, Task, Assigned CPUs, Status, CPU %, RSS MB, Cancel button), affinity policy selector, orphan counter, and global "Cancel All Workers" / "Reap Orphans" actions.
+  - `CoreMonitorPage` (`gui/core_monitor.py`): Added live worker pinning indicators and highlight borders on `CoreWidget` indicating when a logical CPU has active CoreSync workers running on it.
+  - `DataParallelismPage` & `TaskParallelismPage`: Added CPU Affinity Policy dropdowns directly in workload control panels.
+- **Automated Tests (`tests/test_process_manager.py`)**:
+  - Added 21 comprehensive unit and integration tests covering registration, state transitions, PID/PPID tracking, valid affinity assignment, invalid CPU ID handling, permission-denied fallback, Darwin unsupported fallback, round-robin allocation, manual mapping, hybrid P/E core filtering, non-hybrid fallback, cooperative cancellation, forced termination, zombie reaping, orphan detection/reaping, memory headroom checks, Data Parallelism integration, Task Parallelism integration, CPU Stress integration, and GUI snapshot updates.
+  - Test suite now stands at **121 passing tests** (100% pass rate).
+
 ## [0.6.2] - Phase 6.2: Task Parallelism Verification Integrity Audit
 
 ### Added

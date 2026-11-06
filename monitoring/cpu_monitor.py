@@ -13,6 +13,7 @@ logger = logging.getLogger("CoreSync.CPUMonitor")
 
 
 from utils.hardware.base import ProcessInfo
+from engine.process_manager import ProcessManager, WorkerMetadata
 
 
 @dataclass
@@ -29,6 +30,7 @@ class CPUMetricsSnapshot:
     top_processes: List[ProcessInfo] = field(default_factory=list)
     coresync_workers_count: int = 0
     coresync_worker_pids: List[int] = field(default_factory=list)
+    coresync_workers: List[WorkerMetadata] = field(default_factory=list)
 
 
 class CPUMonitorWorker(QObject):
@@ -140,9 +142,12 @@ class CPUMonitorWorker(QObject):
             except Exception:
                 pass
 
+            # Query CoreSync active workers directly from unified ProcessManager
+            registered_workers = ProcessManager.get_global_active_workers()
+            worker_pids: List[int] = [w.pid for w in registered_workers if w.pid]
+
             # Query Top Running Processes (lightweight sample)
             top_procs: List[ProcessInfo] = []
-            worker_pids: List[int] = []
             my_pid = os.getpid()
             try:
                 for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent", "memory_info", "cmdline"]):
@@ -151,8 +156,8 @@ class CPUMonitorWorker(QObject):
                         pid = p_info.get("pid") or 0
                         p_name = p_info.get("name") or "Unknown"
                         cmdline = " ".join(p_info.get("cmdline") or [])
-                        is_worker = ("CoreSync" in cmdline or "coresync" in cmdline) and pid != my_pid
-                        if is_worker:
+                        is_worker = (pid in worker_pids) or (("CoreSync" in cmdline or "coresync" in cmdline) and pid != my_pid)
+                        if is_worker and pid not in worker_pids and pid != my_pid:
                             worker_pids.append(pid)
 
                         c_pct = p_info.get("cpu_percent") or 0.0
@@ -189,6 +194,7 @@ class CPUMonitorWorker(QObject):
                 top_processes=top_procs,
                 coresync_workers_count=len(worker_pids),
                 coresync_worker_pids=worker_pids,
+                coresync_workers=registered_workers,
             )
             self.metrics_updated.emit(snapshot)
 

@@ -13,6 +13,13 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from engine.affinity import (
+    AffinityPolicy,
+    resolve_worker_affinities,
+    set_process_affinity,
+)
+from engine.process_manager import ProcessManager, WorkerLifecycleStatus
+from utils.cpu_topology import CPUTopology
 from utils.system_info import get_system_summary
 from engine.data_parallel.operations import (
     OperationSpec,
@@ -121,6 +128,7 @@ class DataParallelExecutor:
         self._ctx = mp.get_context("spawn")
         self._active_workers: List[mp.Process] = []
         self._active_stop_event: Optional[mp.Event] = None
+        self._pm: Optional[ProcessManager] = None
 
     @staticmethod
     def determine_automatic_workers(dataset_size: int, op_id: str) -> int:
@@ -171,6 +179,10 @@ class DataParallelExecutor:
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         cancel_event: Optional[mp.Event] = None,
         extra_args: dict = None,
+        affinity_policy: AffinityPolicy = AffinityPolicy.AUTOMATIC,
+        custom_cpus: Optional[List[int]] = None,
+        manual_affinity: Optional[Dict[int, List[int]]] = None,
+        topology: Optional[CPUTopology] = None,
     ) -> ParallelExecutionResult:
         """Execute operation in parallel using a pool of isolated worker processes."""
         t_parallel_start = time.perf_counter()
@@ -206,21 +218,35 @@ class DataParallelExecutor:
 
         # 3. Setup multiprocessing queues & stop event
         t_spawn_start = time.perf_counter()
-        task_queue = self._ctx.Queue()
-        result_queue = self._ctx.Queue()
-        stop_event = self._ctx.Event()
+        affinities = resolve_worker_affinities(
+            worker_count=actual_worker_count,
+            policy=affinity_policy,
+            topology=topology,
+            manual_mapping=manual_affinity,
+            custom_cpus=custom_cpus,
+        )
+
+        pm = ProcessManager(start_method="spawn")
+        self._pm = pm
+        task_queue = pm.ctx.Queue()
+        result_queue = pm.ctx.Queue()
+        stop_event = pm.cancel_event
         self._active_stop_event = stop_event
 
         workers: List[mp.Process] = []
         try:
             for w_id in range(actual_worker_count):
-                p = self._ctx.Process(
+                aff = affinities[w_id] if w_id < len(affinities) else []
+                p = pm.spawn_worker(
                     target=data_parallel_worker_loop,
                     args=(task_queue, result_queue, stop_event),
                     name=f"CoreSync-DP-Worker-{w_id}",
+                    engine_name="DataParallel",
+                    worker_id=f"DP-{w_id}",
+                    affinity_cpus=aff,
+                    task_or_chunk_id=f"chunk-{w_id}",
+                    daemon=True,
                 )
-                p.daemon = True
-                p.start()
                 workers.append(p)
             self._active_workers = workers
 
@@ -287,6 +313,11 @@ class DataParallelExecutor:
                 try:
                     res = result_queue.get(timeout=0.1)
                     results.append(res)
+                    pm.update_worker_status(
+                        f"DP-{res.worker_id}",
+                        WorkerLifecycleStatus.COMPLETED if res.success else WorkerLifecycleStatus.FAILED,
+                        error_message=res.error_message,
+                    )
                     if progress_callback:
                         progress_callback(
                             len(results),
@@ -370,6 +401,10 @@ class DataParallelExecutor:
         cancel_event: Optional[mp.Event] = None,
         extra_args: dict = None,
         warm_up: bool = False,
+        affinity_policy: AffinityPolicy = AffinityPolicy.AUTOMATIC,
+        custom_cpus: Optional[List[int]] = None,
+        manual_affinity: Optional[Dict[int, List[int]]] = None,
+        topology: Optional[CPUTopology] = None,
     ) -> DataParallelBenchmarkResult:
         """Run full end-to-end benchmark: sequential baseline, parallel run, and verification."""
         op_specs = get_supported_operations()
@@ -409,6 +444,10 @@ class DataParallelExecutor:
             progress_callback=progress_callback,
             cancel_event=cancel_event,
             extra_args=extra_args,
+            affinity_policy=affinity_policy,
+            custom_cpus=custom_cpus,
+            manual_affinity=manual_affinity,
+            topology=topology,
         )
 
         if not par_result.success:
@@ -484,34 +523,35 @@ class DataParallelExecutor:
             self._cleanup_workers(self._active_workers, timeout=0.5)
 
     def _cleanup_workers(self, workers: List[mp.Process], timeout: float = 1.0) -> None:
-        """Safely terminate child worker processes using 3-stage shutdown."""
-        if not workers:
-            return
-
-        # Stage 1: Cooperative join
-        t_end = time.time() + min(0.3, timeout)
-        for p in workers:
-            if p.is_alive():
-                rem = max(0.01, t_end - time.time())
-                p.join(timeout=rem)
-
-        # Stage 2: SIGTERM
-        for p in workers:
-            if p.is_alive():
-                try:
-                    p.terminate()
-                    p.join(timeout=0.2)
-                except Exception:
-                    pass
-
-        # Stage 3: SIGKILL
-        for p in workers:
-            if p.is_alive():
-                try:
-                    p.kill()
-                    p.join(timeout=0.1)
-                except Exception:
-                    pass
+        """Safely terminate child worker processes using unified ProcessManager."""
+        if self._pm:
+            self._pm.terminate_all(
+                coop_timeout=min(0.2, timeout),
+                term_timeout=min(0.3, timeout),
+                kill_timeout=0.2,
+            )
+            self._pm = None
+        elif workers:
+            # Fallback direct termination
+            t_end = time.time() + min(0.3, timeout)
+            for p in workers:
+                if p.is_alive():
+                    rem = max(0.01, t_end - time.time())
+                    p.join(timeout=rem)
+            for p in workers:
+                if p.is_alive():
+                    try:
+                        p.terminate()
+                        p.join(timeout=0.2)
+                    except Exception:
+                        pass
+            for p in workers:
+                if p.is_alive():
+                    try:
+                        p.kill()
+                        p.join(timeout=0.1)
+                    except Exception:
+                        pass
 
     def _abort_benchmark(self, message: str) -> DataParallelBenchmarkResult:
         return DataParallelBenchmarkResult(

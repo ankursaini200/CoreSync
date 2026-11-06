@@ -29,6 +29,7 @@ from engine.data_parallel.operations import (
     OperationSpec,
     get_supported_operations,
 )
+from engine.affinity import AffinityPolicy
 from engine.data_parallel.executor import (
     DataParallelBenchmarkResult,
     DataParallelExecutor,
@@ -177,7 +178,7 @@ class DataParallelismPage(QWidget):
         grid.addWidget(lbl_workers, 1, 2)
         grid.addWidget(self.spin_workers, 1, 3)
 
-        # Row 3: Random Seed & Hardware Info Note
+        # Row 3: Random Seed & CPU Affinity Policy
         lbl_seed = QLabel("Random Seed:")
         lbl_seed.setProperty("class", "metric-label")
         self.spin_seed = QSpinBox()
@@ -186,16 +187,29 @@ class DataParallelismPage(QWidget):
         grid.addWidget(lbl_seed, 2, 0)
         grid.addWidget(self.spin_seed, 2, 1)
 
+        lbl_aff = QLabel("CPU Affinity Policy:")
+        lbl_aff.setProperty("class", "metric-label")
+        self.combo_affinity = QComboBox()
+        self.combo_affinity.addItems([
+            "Automatic (All Cores)",
+            "Round Robin",
+            "One-to-One Pinning",
+            "P-Core Only (Hybrid)",
+            "E-Core Only (Hybrid)",
+        ])
+        grid.addWidget(lbl_aff, 2, 2)
+        grid.addWidget(self.combo_affinity, 2, 3)
+
+        # Row 4: Host hardware note & Warmup checkbox
         self.lbl_hw_info = QLabel(
             f"Detected Host: {self.summary.cpu_model} ({self.summary.physical_cores}P / {self.summary.logical_cores}L Cores)"
         )
         self.lbl_hw_info.setStyleSheet("color: #58a6ff; font-size: 11px; font-weight: 600;")
-        grid.addWidget(self.lbl_hw_info, 2, 2, 1, 2)
+        grid.addWidget(self.lbl_hw_info, 3, 0, 1, 4)
 
-        # Row 4: Warmup checkbox
         self.check_warmup = QCheckBox("Enable Initial Warm-up Run (stabilizes CPU clock governors)")
         self.check_warmup.setChecked(False)
-        grid.addWidget(self.check_warmup, 3, 0, 1, 4)
+        grid.addWidget(self.check_warmup, 4, 0, 1, 4)
 
         layout.addLayout(grid)
 
@@ -422,12 +436,23 @@ class DataParallelismPage(QWidget):
         self.lbl_progress_status.setText("Initializing benchmark engine...")
         self.badge_hardware.set_status("Benchmark In Progress", "warning")
 
+        policy_map = {
+            0: AffinityPolicy.AUTOMATIC,
+            1: AffinityPolicy.ROUND_ROBIN,
+            2: AffinityPolicy.ONE_TO_ONE,
+            3: AffinityPolicy.P_CORE_ONLY,
+            4: AffinityPolicy.E_CORE_ONLY,
+        }
+        chosen_policy = policy_map.get(self.combo_affinity.currentIndex(), AffinityPolicy.AUTOMATIC)
+
         self.runner_thread.configure(
             op_id=op_id,
             dataset_size=size,
             worker_count=workers,
             seed=seed,
             warm_up=warmup,
+            affinity_policy=chosen_policy,
+            topology=self.summary.topology,
         )
         self.runner_thread.start()
 

@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from engine.affinity import AffinityPolicy
 from engine.task_parallel.dispatcher import TaskDispatcher
 from engine.task_parallel.presets import (
     PRESET_GENERATORS,
@@ -182,10 +183,23 @@ class TaskParallelismPage(QWidget):
         grid.addWidget(lbl_workers, 1, 2)
         grid.addWidget(self.spin_workers, 1, 3)
 
-        # Row 3: Sequential Baseline Checkbox
+        # Row 3: CPU Affinity & Sequential Baseline Checkbox
+        lbl_aff = QLabel("CPU Affinity Policy:")
+        lbl_aff.setProperty("class", "metric-label")
+        self.combo_affinity = QComboBox()
+        self.combo_affinity.addItems([
+            "Automatic (All Cores)",
+            "Round Robin",
+            "One-to-One Pinning",
+            "P-Core Only (Hybrid)",
+            "E-Core Only (Hybrid)",
+        ])
+        grid.addWidget(lbl_aff, 2, 0)
+        grid.addWidget(self.combo_affinity, 2, 1)
+
         self.check_benchmark = QCheckBox("Measure Sequential Baseline for Actual Speedup (S = T_seq / T_par)")
         self.check_benchmark.setChecked(True)
-        grid.addWidget(self.check_benchmark, 2, 0, 1, 4)
+        grid.addWidget(self.check_benchmark, 2, 2, 1, 2)
 
         # Row 4: Host hardware note
         self.lbl_hw_info = QLabel(
@@ -499,8 +513,24 @@ class TaskParallelismPage(QWidget):
             self.worker_badges_layout.addWidget(badge)
             self.worker_badges[w_id] = badge
 
+        policy_map = {
+            0: AffinityPolicy.AUTOMATIC,
+            1: AffinityPolicy.ROUND_ROBIN,
+            2: AffinityPolicy.ONE_TO_ONE,
+            3: AffinityPolicy.P_CORE_ONLY,
+            4: AffinityPolicy.E_CORE_ONLY,
+        }
+        chosen_policy = policy_map.get(self.combo_affinity.currentIndex(), AffinityPolicy.AUTOMATIC)
+
         run_benchmark = self.check_benchmark.isChecked()
-        self.runner_thread.configure(self.current_graph, worker_count, policy, run_benchmark=run_benchmark)
+        self.runner_thread.configure(
+            self.current_graph,
+            worker_count,
+            policy,
+            run_benchmark=run_benchmark,
+            affinity_policy=chosen_policy,
+            topology=self.summary.topology,
+        )
         self.runner_thread.start()
 
     def _on_cancel_clicked(self) -> None:

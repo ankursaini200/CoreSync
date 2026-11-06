@@ -14,6 +14,14 @@ import os
 import time
 from typing import Dict, List, Optional
 
+from engine.affinity import (
+    AffinityPolicy,
+    resolve_worker_affinities,
+    set_process_affinity,
+)
+from engine.process_manager import ProcessManager, WorkerLifecycleStatus
+from utils.cpu_topology import CPUTopology
+
 logger = logging.getLogger("CoreSync.CPUStress")
 
 # Maximum permitted stress duration for safety (seconds)
@@ -69,6 +77,7 @@ class RealCPUStressGenerator:
 
     def __init__(self):
         self._ctx = mp.get_context("spawn")
+        self._pm: Optional[ProcessManager] = None
         self._stop_event = self._ctx.Event()
         self._workers: Dict[int, BaseProcess] = {}
         self._start_time: float = 0.0
@@ -77,6 +86,8 @@ class RealCPUStressGenerator:
 
     def is_running(self) -> bool:
         """Return True if any stress worker process is still alive."""
+        if self._pm:
+            return len(self._pm.get_active_pids()) > 0
         return any(w.is_alive() for w in self._workers.values())
 
     def start_stress(
@@ -84,13 +95,19 @@ class RealCPUStressGenerator:
         worker_count: int,
         duration_s: float = DEFAULT_STRESS_DURATION_S,
         intensity_pct: float = 100.0,
+        affinity_policy: AffinityPolicy = AffinityPolicy.AUTOMATIC,
+        target_cpus: Optional[List[int]] = None,
+        topology: Optional[CPUTopology] = None,
     ) -> bool:
-        """Start genuine CPU-bound worker processes.
+        """Start genuine CPU-bound worker processes with unified process and affinity management.
 
         Args:
             worker_count: Number of processes to spawn (clamped to 1..64).
             duration_s: Runtime in seconds (clamped to 1.0..MAX_STRESS_DURATION_S).
             intensity_pct: Workload intensity percentage (10% to 100%).
+            affinity_policy: CPU allocation and core pinning policy.
+            target_cpus: Explicit list of logical CPUs for CUSTOM policy.
+            topology: System CPU topology for hybrid P-core/E-core filtering.
 
         Returns:
             True if stress successfully started, False if already running.
@@ -106,39 +123,66 @@ class RealCPUStressGenerator:
         self._duration_s = max(1.0, min(duration_s, MAX_STRESS_DURATION_S))
         self._intensity_pct = max(10.0, min(intensity_pct, 100.0))
 
-        self._stop_event.clear()
+        # Setup unified ProcessManager and calculate affinities
+        pm = ProcessManager(start_method="spawn")
+        self._pm = pm
+        self._stop_event = pm.cancel_event
         self._start_time = time.time()
         self._workers.clear()
 
-        logger.info(f"Starting Real CPU Stress: {worker_count} workers, {self._duration_s}s, {self._intensity_pct}% intensity")
+        affinities = resolve_worker_affinities(
+            worker_count=worker_count,
+            policy=affinity_policy,
+            topology=topology,
+            custom_cpus=target_cpus,
+        )
+
+        logger.info(
+            f"Starting Real CPU Stress: {worker_count} workers, {self._duration_s}s, "
+            f"{self._intensity_pct}% intensity, Policy: {affinity_policy.value}"
+        )
 
         for i in range(worker_count):
-            p = self._ctx.Process(
+            aff = affinities[i] if i < len(affinities) else []
+            p = pm.spawn_worker(
                 target=stress_worker_loop,
                 args=(i, self._stop_event, self._duration_s, self._intensity_pct),
                 name=f"CoreSync-Stress-{i}",
+                engine_name="CPUStress",
+                worker_id=f"Stress-{i}",
+                affinity_cpus=aff,
+                daemon=True,
             )
-            p.daemon = True
-            p.start()
             self._workers[i] = p
 
         return True
 
     def stop_stress(self, timeout_s: float = 1.5) -> None:
-        """Immediately cancel and terminate all stress worker processes."""
+        """Immediately cancel and terminate all stress worker processes via ProcessManager."""
+        if self._pm:
+            self._pm.terminate_all(
+                coop_timeout=min(0.3, timeout_s * 0.3),
+                term_timeout=min(0.5, timeout_s * 0.5),
+                kill_timeout=0.2,
+            )
+            self._pm = None
+            self._workers.clear()
+            logger.info("All CPU stress workers cleaned up via ProcessManager.")
+            return
+
         if not self._workers:
             return
 
         logger.info(f"Stopping {len(self._workers)} CPU stress workers...")
 
-        # Stage 1: Cooperative cancellation signal
+        # Fallback stage 1: Cooperative cancellation signal
         self._stop_event.set()
         deadline = time.time() + min(0.5, timeout_s)
         for p in self._workers.values():
             rem = max(0.01, deadline - time.time())
             p.join(timeout=rem)
 
-        # Stage 2: SIGTERM for any still alive
+        # Fallback stage 2: SIGTERM for any still alive
         alive = [p for p in self._workers.values() if p.is_alive()]
         if alive:
             logger.warning(f"Terminating {len(alive)} uncooperative stress workers...")
@@ -150,7 +194,7 @@ class RealCPUStressGenerator:
             for p in alive:
                 p.join(timeout=0.3)
 
-        # Stage 3: Forceful SIGKILL fallback
+        # Fallback stage 3: Forceful SIGKILL fallback
         alive = [p for p in self._workers.values() if p.is_alive()]
         if alive:
             logger.error(f"Killing {len(alive)} unresponsive stress workers...")
@@ -167,10 +211,26 @@ class RealCPUStressGenerator:
 
     def get_status(self) -> StressStatus:
         """Return current status snapshot of CPU stress generation."""
+        if self._pm:
+            alive_pids = self._pm.get_active_pids()
+            elapsed = time.time() - self._start_time if self._start_time > 0 else 0.0
+
+            if self._workers and not alive_pids:
+                self._workers.clear()
+                self._pm = None
+
+            return StressStatus(
+                is_running=bool(alive_pids),
+                workers_active=len(alive_pids),
+                elapsed_s=min(elapsed, self._duration_s),
+                target_duration_s=self._duration_s,
+                intensity_pct=self._intensity_pct,
+                worker_pids=alive_pids,
+            )
+
         alive_workers = [p for p in self._workers.values() if p.is_alive()]
         elapsed = time.time() - self._start_time if self._start_time > 0 else 0.0
 
-        # Auto-detect completion
         if self._workers and not alive_workers:
             self._workers.clear()
 

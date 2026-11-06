@@ -80,6 +80,12 @@ class CoreWidget(QFrame):
         top_row.addWidget(self.tag_lbl, alignment=Qt.AlignRight)
         layout.addLayout(top_row)
 
+        # Worker Assignment Indicator Row
+        self.worker_lbl = QLabel("", self)
+        self.worker_lbl.setStyleSheet("color: #58a6ff; font-size: 9px; font-weight: 700;")
+        self.worker_lbl.setVisible(False)
+        layout.addWidget(self.worker_lbl)
+
         # Progress Bar
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setRange(0, 100)
@@ -109,6 +115,18 @@ class CoreWidget(QFrame):
         self.percent_lbl.setText(f"{percent:.1f}%")
         if freq_mhz is not None and freq_mhz > 0:
             self.freq_lbl.setText(f"{int(round(freq_mhz))} MHz")
+
+    def update_worker_pinning(self, worker_names: List[str]) -> None:
+        """Highlight core if actively assigned to a CoreSync worker process."""
+        if worker_names:
+            self.worker_lbl.setText(f"Worker: {', '.join(worker_names)}")
+            self.worker_lbl.setVisible(True)
+            self.setStyleSheet(f"QFrame#coreBox_{self.cpu_id} {{ border: 1px solid #58a6ff; background-color: #172233; }}")
+        else:
+            self.worker_lbl.setText("")
+            self.worker_lbl.setVisible(False)
+            if self._is_highlighted:
+                self.setStyleSheet("")
 
     def set_affinity_highlight(self, enabled: bool) -> None:
         """Dim or highlight card based on affinity preview selection."""
@@ -374,7 +392,15 @@ class CoreMonitorPage(QWidget):
         per_cpu = snapshot.per_cpu_percent
         freqs = snapshot.per_cpu_freq_mhz
 
+        # Map active CoreSync workers to logical CPU IDs
+        core_to_workers: Dict[int, List[str]] = {}
+        for w in (snapshot.coresync_workers or []):
+            aff_list = w.actual_cpu_affinity or w.assigned_cpu_affinity
+            for cpu_id in aff_list:
+                core_to_workers.setdefault(cpu_id, []).append(str(w.worker_id))
+
         for i, val in enumerate(per_cpu):
             if i in self.core_widgets:
                 f_val = freqs[i] if freqs and i < len(freqs) else None
                 self.core_widgets[i].update_metrics(val, f_val)
+                self.core_widgets[i].update_worker_pinning(core_to_workers.get(i, []))

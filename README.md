@@ -58,15 +58,17 @@ CoreSync/
 │   └── components/              # Reusable UI widgets (cards, badges, header)
 │
 ├── engine/                      # Computation & Concurrency Layer
+│   ├── process_manager.py       # Unified worker lifecycle coordinator & 4-stage shutdown
+│   ├── affinity.py              # Cross-platform CPU affinity assignment & core allocation policies
+│   ├── resource_guard.py        # Worker concurrency bounds, memory headroom & system load guard
 │   ├── data_parallel/           # Actual Data Parallelism engine (partitioner, workers, collector, verification)
 │   ├── task_parallel/           # Task Parallelism engine (DAG graph, queues, dispatcher, executor, verifier)
 │   ├── real_system/             # Genuine multi-process CPU stress generator
 │   ├── virtual_lab/             # Software virtual CPU, cores, tasks, & scheduler
-│   ├── worker.py                # Pure Python worker entrypoint (ZERO Qt imports)
-│   └── process_manager.py       # Worker lifecycle & graceful termination
+│   └── worker.py                # Pure Python worker entrypoint (ZERO Qt imports)
 │
 ├── monitoring/                  # Real-Time Telemetry & Metrics
-│   ├── cpu_monitor.py           # Asynchronous QThread CPU/RAM/process sampler
+│   ├── cpu_monitor.py           # Asynchronous QThread CPU/RAM/process sampler & worker registry
 │   └── metrics.py               # Speedup, efficiency, and overhead math
 │
 ├── utils/                       # Foundation & Hardware Utilities
@@ -76,8 +78,9 @@ CoreSync/
 │   ├── config.py                # Configuration constants
 │   └── logging_config.py        # Structured logging
 │
-└── tests/                       # Automated Test Suite (95 passing tests)
+└── tests/                       # Automated Test Suite (121 passing tests)
     ├── conftest.py              # Test fixtures & Qt offscreen config
+    ├── test_process_manager.py  # Unified ProcessManager & CPU affinity tests (21 tests)
     ├── test_hardware_providers.py # Cross-platform provider tests
     ├── test_virtual_lab.py      # Virtual multicore simulation tests
     ├── test_real_stress.py      # Stress safety & orphan process tests
@@ -139,7 +142,31 @@ To guarantee scientific rigor, CoreSync distinguishes **Full Output Equivalence 
 
 ---
 
-## 6. Setup & Installation
+## 6. Unified Process Management & CPU Affinity Subsystem
+
+CoreSync coordinates all spawned worker processes across Data Parallelism, Task Parallelism, and Real CPU Stress through a centralized, cross-platform process management layer:
+
+### Architecture
+- **Unified Lifecycle Tracking**: Every worker process registers its OS PID, parent PID, engine identifier, task/chunk assignment, allocated logical CPU affinity mask, and lifecycle state (`INITIALIZING`, `RUNNING`, `IDLE`, `COMPLETED`, `FAILED`, `CANCELLED`, `TERMINATED`).
+- **4-Stage Shutdown Protocol**: Guaranteed termination escalation without leaking zombie or orphan processes:
+  1. Cooperative cancellation via shared `multiprocessing.Event`.
+  2. Graceful `Process.terminate()` (`SIGTERM`).
+  3. Forceful `Process.kill()` (`SIGKILL`).
+  4. Final process reaping and join.
+- **Orphan Detection & Reaping**: Background scan identifying any dangling CoreSync processes whose parent PID has exited, safely terminating them without touching unrelated user processes.
+- **Resource Safeguards**: Automatic worker count clamping, available memory headroom verification, and worker memory threshold monitoring.
+
+### CPU Affinity Policies
+- **Automatic**: Default OS scheduling across all available logical cores.
+- **Round Robin**: Sequential round-robin assignment of workers to available logical CPUs.
+- **One-to-One Pinning**: Direct pinning of worker $i$ to logical CPU $i$.
+- **Performance (P-Core) Only**: Strict pinning to verified Performance cores on hybrid architectures.
+- **Efficiency (E-Core) Only**: Strict pinning to verified Efficiency cores on hybrid architectures.
+- **Manual / Custom**: Explicit user-defined worker-to-core mapping.
+
+---
+
+## 7. Setup & Installation
 
 ### Arch Linux / Linux (PEP 668 Compliant)
 
