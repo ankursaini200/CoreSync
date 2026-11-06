@@ -20,10 +20,14 @@ from engine.affinity import (
     set_process_affinity,
 )
 from engine.process_manager import (
+    ParentDeathProtectionResult,
+    PlatformProtectionCapability,
     ProcessManager,
     WorkerLifecycleStatus,
     WorkerMetadata,
+    _setup_win32_parent_handle_watchdog,
     enable_parent_death_protection,
+    get_platform_protection_capabilities,
 )
 from engine.resource_guard import ResourceGuard, ResourceLimits
 from engine.data_parallel.executor import DataParallelExecutor
@@ -68,6 +72,30 @@ def _parent_death_parent(child_pid_queue):
     child_pid_queue.put(child.pid)
     while True:
         time.sleep(0.05)
+
+
+def _startup_race_child(expected_ppid, entered_flag):
+    """Child worker simulating delayed initialization to trigger parent-death startup race."""
+    # Delay so parent process terminates before prctl setup is reached
+    time.sleep(0.25)
+    enable_parent_death_protection(expected_ppid)
+    # If the startup race check works, os._exit(0) is called and this is never reached
+    entered_flag.value = 1
+    while True:
+        time.sleep(0.05)
+
+
+def _startup_race_parent(child_pid_q, entered_flag):
+    """Parent process that spawns child and abruptly terminates."""
+    import multiprocessing as mp
+    ctx = mp.get_context("spawn")
+    parent_pid = os.getpid()
+    child = ctx.Process(target=_startup_race_child, args=(parent_pid, entered_flag))
+    child.daemon = True
+    child.start()
+    child_pid_q.put(child.pid)
+    time.sleep(0.05)
+    os._exit(0)
 
 
 # -----------------------------------------------------------------------------
@@ -660,4 +688,148 @@ def test_resource_guard_insufficient_memory_rejection():
         assert headroom is False
         assert round(avail_mb, 1) == 50.0
         assert "Low system memory warning" in msg
+
+
+# -----------------------------------------------------------------------------
+# 11. Phase 7.2 Startup Race & Platform Reliability Tests
+# -----------------------------------------------------------------------------
+def test_parent_death_startup_race_prevention():
+    """Verify child worker self-terminates immediately if parent dies before prctl is reached."""
+    import multiprocessing as mp
+    ctx = mp.get_context("spawn")
+    q = ctx.Queue()
+    entered_flag = ctx.Value("i", 0)
+
+    parent = ctx.Process(target=_startup_race_parent, args=(q, entered_flag))
+    parent.start()
+
+    child_pid = q.get(timeout=3.0)
+    parent.join(timeout=1.0)
+
+    # Wait for child to initialize, detect that parent is already dead, and exit
+    time.sleep(0.6)
+
+    child_alive = False
+    try:
+        cp = psutil.Process(child_pid)
+        if cp.is_running() and cp.status() != psutil.STATUS_ZOMBIE:
+            child_alive = True
+    except psutil.NoSuchProcess:
+        child_alive = False
+
+    assert not child_alive, f"Child PID {child_pid} survived startup race as an orphan!"
+    # Crucial assertion: the child NEVER reached its main computational loop
+    assert entered_flag.value == 0, "Child executed computational tasks despite parent dying before prctl!"
+
+
+def test_prctl_error_handling_does_not_report_enabled():
+    """Verify that prctl() failure on Linux returns enabled=False and records error details."""
+    mock_libc = MagicMock()
+    mock_libc.prctl.return_value = -1
+
+    with patch("ctypes.CDLL", return_value=mock_libc), \
+         patch("ctypes.get_errno", return_value=22):  # EINVAL = 22
+        res = enable_parent_death_protection(parent_pid=os.getppid())
+
+        if sys.platform.startswith("linux"):
+            assert res.enabled is False
+            assert res.mechanism == "Failed"
+            assert "prctl(PR_SET_PDEATHSIG) failed" in res.error
+            assert "errno 22" in res.error
+
+
+def test_windows_parent_death_handle_monitoring_mocked():
+    """Verify Win32 process handle wait mechanism (Mocked Windows platform on Linux)."""
+    mock_kernel32 = MagicMock()
+    mock_kernel32.OpenProcess.return_value = 12345  # valid handle
+    mock_kernel32.WaitForSingleObject.return_value = 0  # WAIT_OBJECT_0
+    mock_kernel32.CloseHandle.return_value = 1
+
+    mock_ctypes = MagicMock()
+    mock_ctypes.windll.kernel32 = mock_kernel32
+    mock_exit = MagicMock()
+
+    with patch.dict("sys.modules", {"ctypes": mock_ctypes}):
+        with patch("sys.platform", "win32"):
+            success, err = _setup_win32_parent_handle_watchdog(os.getpid(), exit_callback=mock_exit)
+            assert success is True
+            assert err is None
+            mock_kernel32.OpenProcess.assert_called_once_with(0x00100000, False, os.getpid())
+            # Allow thread to execute
+            time.sleep(0.05)
+            mock_kernel32.WaitForSingleObject.assert_called_once()
+            mock_exit.assert_called_with(0)
+
+    # Test OpenProcess failure (e.g. parent already terminated)
+    mock_kernel32_fail = MagicMock()
+    mock_kernel32_fail.OpenProcess.return_value = 0  # NULL handle
+    mock_kernel32_fail.GetLastError.return_value = 87  # ERROR_INVALID_PARAMETER
+    mock_ctypes_fail = MagicMock()
+    mock_ctypes_fail.windll.kernel32 = mock_kernel32_fail
+
+    with patch.dict("sys.modules", {"ctypes": mock_ctypes_fail}):
+        with patch("sys.platform", "win32"), \
+             patch("psutil.pid_exists", return_value=True):
+            success, err = _setup_win32_parent_handle_watchdog(os.getpid(), exit_callback=mock_exit)
+            assert success is False
+            assert "OpenProcess failed" in err
+            assert "87" in err
+
+
+def test_platform_protection_capabilities_matrix():
+    """Verify platform capabilities matrix accurately reports mechanisms and limitations."""
+    # Current Linux environment
+    cap_linux = get_platform_protection_capabilities()
+    if sys.platform.startswith("linux"):
+        assert cap_linux.has_kernel_pdeathsig is True
+        assert cap_linux.guarantee_level == "kernel_synchronous"
+        assert "SIGTERM" in cap_linux.guarantee_description
+
+    # Windows simulation
+    with patch("sys.platform", "win32"):
+        cap_win = get_platform_protection_capabilities()
+        assert cap_win.has_win32_handle_wait is True
+        assert cap_win.has_kernel_pdeathsig is False
+        assert cap_win.guarantee_level == "handle_synchronous"
+        assert "SYNCHRONIZE" in cap_win.limitations
+
+    # macOS Darwin simulation
+    with patch("sys.platform", "darwin"):
+        cap_mac = get_platform_protection_capabilities()
+        assert cap_mac.has_kernel_pdeathsig is False
+        assert cap_mac.has_kqueue_proc is True
+        assert cap_mac.guarantee_level == "bounded_polling_or_kqueue"
+        assert "macOS kernel does NOT provide PR_SET_PDEATHSIG" in cap_mac.limitations
+
+
+def test_resource_guard_heavy_load_advisory_warning():
+    """Verify that host heavy load (95%+) produces an advisory warning and is NOT an execution block."""
+    guard = ResourceGuard()
+
+    mock_vm = MagicMock()
+    mock_vm.percent = 97.5  # Saturated RAM
+
+    with patch("psutil.cpu_percent", return_value=98.2), \
+         patch("psutil.virtual_memory", return_value=mock_vm):
+        is_heavy, msg = guard.is_system_under_heavy_load()
+        assert is_heavy is True
+        # Explicitly must be documented as an advisory warning, NOT a block
+        assert "Advisory Warning" in msg
+        assert "Execution is not blocked" in msg
+        assert "98.2%" in msg
+
+    # Re-verify that while heavy load is advisory, worker clamping remains strictly enforced
+    clamped, clamp_msg = guard.validate_worker_request(1000)
+    assert clamped <= guard.limits.max_workers
+    assert clamped == min(guard.limits.max_workers, guard._logical_cores * 2)
+    assert clamp_msg is not None
+
+    # Re-verify that insufficient memory remains strictly enforced
+    mock_vm_low = MagicMock()
+    mock_vm_low.available = 10 * 1024 * 1024  # 10 MB available
+    with patch("psutil.virtual_memory", return_value=mock_vm_low):
+        headroom, _, mem_msg = guard.check_memory_headroom(required_mb=512.0)
+        assert headroom is False  # Enforced rejection
+        assert "Low system memory warning" in mem_msg
+
 

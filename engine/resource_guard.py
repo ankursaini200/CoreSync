@@ -27,11 +27,11 @@ class ResourceLimits:
     """Configurable resource safety boundaries.
 
     Attributes:
-        max_workers: Absolute ceiling for spawned worker processes (default 64).
-        min_free_ram_mb: Minimum available RAM before spawning worker pools (default 256 MB).
+        max_workers: Absolute ceiling for spawned worker processes (default 64, enforced via clamping).
+        min_free_ram_mb: Minimum available RAM before spawning worker pools (default 256 MB, enforced rejection if insufficient).
         per_worker_est_mb: Estimated RAM footprint per spawned Python worker process (default 32 MB).
-        max_worker_ram_mb: RSS memory ceiling per single worker before flagging (default 2048 MB / 2 GB).
-        warn_on_heavy_load: Whether to log warnings when host CPU/RAM exceed 95% saturation.
+        max_worker_ram_mb: RSS memory ceiling per single worker before flagging (default 2048 MB / 2 GB, monitored).
+        warn_on_heavy_load: Whether to log advisory warnings when host CPU/RAM exceed 95% saturation (advisory warning only; non-blocking).
     """
     max_workers: int = DEFAULT_HARD_WORKER_CAP
     min_free_ram_mb: float = DEFAULT_MIN_FREE_RAM_MB
@@ -126,14 +126,22 @@ class ResourceGuard:
         cpu_threshold: float = HEAVY_LOAD_CPU_THRESHOLD_PCT,
         mem_threshold: float = HEAVY_LOAD_MEM_THRESHOLD_PCT,
     ) -> Tuple[bool, str]:
-        """Detect whether host CPU or RAM is saturated above threshold percentages."""
+        """Detect whether host CPU or RAM is saturated above advisory warning thresholds (non-blocking).
+
+        Returns:
+            Tuple of (is_heavy, advisory_message).
+        """
         try:
             cpu_pct = psutil.cpu_percent(interval=None)
             vm = psutil.virtual_memory()
             mem_pct = vm.percent
 
             if cpu_pct >= cpu_threshold or mem_pct >= mem_threshold:
-                msg = f"System under heavy load: CPU {cpu_pct:.1f}% (cap: {cpu_threshold}%), RAM {mem_pct:.1f}% (cap: {mem_threshold}%)."
+                msg = (
+                    f"Advisory Warning: Host system is under heavy load (CPU: {cpu_pct:.1f}%, RAM: {mem_pct:.1f}%). "
+                    f"Utilization exceeds advisory threshold of {cpu_threshold:.0f}%. "
+                    f"Execution is not blocked, but performance may be degraded."
+                )
                 logger.warning(msg)
                 return True, msg
 

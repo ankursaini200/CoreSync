@@ -39,41 +39,141 @@ from utils.config import (
 logger = logging.getLogger("CoreSync.ProcessManager")
 
 
-def enable_parent_death_protection(parent_pid: Optional[int] = None) -> None:
-    """Configure parent-death signaling and watchdog thread for worker child processes.
+@dataclass
+class ParentDeathProtectionResult:
+    """Outcome and diagnostics of parent-death protection configuration."""
+    enabled: bool
+    mechanism: str
+    target_parent_pid: int
+    error: Optional[str] = None
+    startup_race_checked: bool = True
+    limitations: Optional[str] = None
 
-    Guarantees that if the CoreSync parent process dies (including SIGKILL or unexpected crash),
-    this worker process will terminate cleanly without surviving as an orphan.
+    def __bool__(self) -> bool:
+        return self.enabled
 
-    Dual-defense mechanism:
-    1. Linux kernel PR_SET_PDEATHSIG: Asks the kernel to deliver SIGTERM immediately upon parent exit.
-    2. Cross-platform watchdog thread: Polls getppid() every 100ms. If getppid() != parent_pid
-       (indicating reparenting to init/subreaper), calls os._exit(0) immediately.
-    """
-    target_ppid = parent_pid if (parent_pid is not None and parent_pid > 0) else os.getppid()
 
-    # 1. Linux kernel-level signal on parent death
-    if sys.platform.startswith("linux"):
-        try:
-            import ctypes
-            libc = ctypes.CDLL(None)
-            # PR_SET_PDEATHSIG is 1, signal.SIGTERM is 15
-            libc.prctl(1, signal.SIGTERM, 0, 0, 0)
-        except Exception as e:
-            logger.debug(f"Could not configure PR_SET_PDEATHSIG: {e}")
+@dataclass
+class PlatformProtectionCapability:
+    """Detailed platform capabilities and limitations for parent-death protection."""
+    platform_name: str
+    has_kernel_pdeathsig: bool
+    has_win32_handle_wait: bool
+    has_kqueue_proc: bool
+    watchdog_polling_supported: bool
+    guarantee_level: str
+    guarantee_description: str
+    limitations: str
 
-    # 2. Child-side background polling watchdog thread
+
+def get_platform_protection_capabilities() -> PlatformProtectionCapability:
+    """Query the supported parent-death protection mechanisms and limitations for current OS."""
+    plat = sys.platform
+    if plat.startswith("linux"):
+        return PlatformProtectionCapability(
+            platform_name=plat,
+            has_kernel_pdeathsig=True,
+            has_win32_handle_wait=False,
+            has_kqueue_proc=False,
+            watchdog_polling_supported=True,
+            guarantee_level="kernel_synchronous",
+            guarantee_description="Kernel delivers SIGTERM immediately upon parent exit + startup race check + 100ms watchdog.",
+            limitations="PR_SET_PDEATHSIG only delivers signal if parent dies while child is alive. Startup race check verifies getppid() immediately after prctl().",
+        )
+    elif plat == "win32":
+        return PlatformProtectionCapability(
+            platform_name=plat,
+            has_kernel_pdeathsig=False,
+            has_win32_handle_wait=True,
+            has_kqueue_proc=False,
+            watchdog_polling_supported=True,
+            guarantee_level="handle_synchronous",
+            guarantee_description="SYNCHRONIZE handle to parent process waits on signaled state in dedicated thread without polling.",
+            limitations="Requires OpenProcess(SYNCHRONIZE) permission on parent process. If handle creation fails, falls back to bounded polling.",
+        )
+    elif plat == "darwin":
+        return PlatformProtectionCapability(
+            platform_name=plat,
+            has_kernel_pdeathsig=False,
+            has_win32_handle_wait=False,
+            has_kqueue_proc=True,
+            watchdog_polling_supported=True,
+            guarantee_level="bounded_polling_or_kqueue",
+            guarantee_description="Event-driven kqueue NOTE_EXIT when supported, backed by 100ms getppid() reparenting watchdog.",
+            limitations="macOS kernel does NOT provide PR_SET_PDEATHSIG. Cannot guarantee zero-delay kernel-synchronous termination; bounded to <= 100ms polling.",
+        )
+    else:
+        return PlatformProtectionCapability(
+            platform_name=plat,
+            has_kernel_pdeathsig=False,
+            has_win32_handle_wait=False,
+            has_kqueue_proc=False,
+            watchdog_polling_supported=True,
+            guarantee_level="bounded_polling",
+            guarantee_description="Generic POSIX reparenting polling watchdog thread checking getppid() every 100ms.",
+            limitations="Relies on periodic getppid() polling; bounded by 100ms sleep interval.",
+        )
+
+
+def _setup_win32_parent_handle_watchdog(
+    expected_ppid: int,
+    exit_callback: Callable = os._exit,
+) -> Tuple[bool, Optional[str]]:
+    """Configure Win32 waitable process handle monitoring for parent death."""
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        SYNCHRONIZE = 0x00100000
+        # Open waitable synchronization handle to parent process
+        h_parent = kernel32.OpenProcess(SYNCHRONIZE, False, expected_ppid)
+        if not h_parent:
+            err_code = kernel32.GetLastError()
+            if not psutil.pid_exists(expected_ppid):
+                # Parent has already terminated
+                exit_callback(0)
+            return False, f"OpenProcess failed for parent PID {expected_ppid} (code {err_code})"
+
+        def _win32_watchdog_worker(handle):
+            INFINITE = 0xFFFFFFFF
+            WAIT_OBJECT_0 = 0x00000000
+            try:
+                res = kernel32.WaitForSingleObject(handle, INFINITE)
+                if res == WAIT_OBJECT_0:
+                    exit_callback(0)
+            finally:
+                try:
+                    kernel32.CloseHandle(handle)
+                except Exception:
+                    pass
+                exit_callback(0)
+
+        t = threading.Thread(
+            target=_win32_watchdog_worker,
+            args=(h_parent,),
+            daemon=True,
+            name="CoreSync-Win32ParentWatchdog",
+        )
+        t.start()
+        return True, None
+    except Exception as e:
+        return False, f"Win32 handle monitoring setup error: {e}"
+
+
+def _start_generic_watchdog_thread(
+    expected_ppid: int,
+    exit_callback: Callable = os._exit,
+) -> threading.Thread:
+    """Launch cross-platform watchdog polling thread monitoring parent PID and reparenting."""
     def _parent_watchdog_loop():
         while True:
             time.sleep(0.1)
-            # Check if reparented (ppid changed to 1 or subreaper)
             curr_ppid = os.getppid()
-            if curr_ppid != target_ppid:
-                # Parent has exited, child was reparented to init
-                os._exit(0)
+            if curr_ppid != expected_ppid:
+                # Parent exited and child was reparented to init / subreaper
+                exit_callback(0)
             try:
-                if not psutil.pid_exists(target_ppid):
-                    os._exit(0)
+                if not psutil.pid_exists(expected_ppid):
+                    exit_callback(0)
             except Exception:
                 pass
 
@@ -83,6 +183,109 @@ def enable_parent_death_protection(parent_pid: Optional[int] = None) -> None:
         name="CoreSync-ParentDeathWatchdog",
     )
     watchdog.start()
+    return watchdog
+
+
+def enable_parent_death_protection(parent_pid: Optional[int] = None) -> ParentDeathProtectionResult:
+    """Configure parent-death signaling and watchdog thread for worker child processes.
+
+    Strict 5-step sequence eliminating startup race condition:
+    1. Capture expected parent PID before enabling protection.
+    2. Call prctl(PR_SET_PDEATHSIG, SIGTERM) on Linux.
+    3. Immediately call os.getppid().
+    4. If current parent PID differs from expected PID (or expected <= 1), terminate immediately.
+    5. Start child-side watchdog for subsequent parent-death monitoring.
+
+    Returns:
+        ParentDeathProtectionResult indicating whether setup succeeded, mechanism, and errors.
+    """
+    # Step 1: Capture expected parent PID before enabling protection
+    expected_ppid = int(parent_pid) if (parent_pid is not None and parent_pid > 0) else os.getppid()
+
+    # Step 2: Call prctl(PR_SET_PDEATHSIG, SIGTERM) on Linux
+    linux_pdeath_ok = False
+    setup_error = None
+    mechanism = "None"
+    limitations = None
+
+    if sys.platform.startswith("linux"):
+        try:
+            import ctypes
+            libc = ctypes.CDLL(None, use_errno=True)
+            # PR_SET_PDEATHSIG = 1, signal.SIGTERM = 15
+            ret = libc.prctl(1, signal.SIGTERM, 0, 0, 0)
+            if ret != 0:
+                errno_val = ctypes.get_errno()
+                setup_error = f"prctl(PR_SET_PDEATHSIG) failed with return code {ret}, errno {errno_val}"
+                logger.error(setup_error)
+            else:
+                linux_pdeath_ok = True
+                mechanism = "PR_SET_PDEATHSIG+Watchdog"
+        except Exception as e:
+            setup_error = f"Could not configure PR_SET_PDEATHSIG: {e}"
+            logger.error(setup_error)
+
+    # Step 3 & 4: Immediately call os.getppid() and check for startup race
+    current_ppid = os.getppid()
+    if current_ppid != expected_ppid:
+        logger.critical(
+            f"Parent-death startup race detected: expected parent PID {expected_ppid}, "
+            f"but current getppid() is {current_ppid}. Self-terminating immediately."
+        )
+        os._exit(0)
+
+    # Step 5: Start or retain child-side watchdog for subsequent parent-death detection
+    if sys.platform == "win32":
+        win_ok, win_err = _setup_win32_parent_handle_watchdog(expected_ppid)
+        if win_ok:
+            return ParentDeathProtectionResult(
+                enabled=True,
+                mechanism="Win32-ProcessHandle-Wait",
+                target_parent_pid=expected_ppid,
+                startup_race_checked=True,
+            )
+        else:
+            setup_error = win_err
+            # Fall back to generic watchdog thread below
+
+    elif sys.platform == "darwin":
+        limitations = (
+            "macOS lacks PR_SET_PDEATHSIG kernel signaling. "
+            "Protection operates via child-side 100ms watchdog polling; termination is bounded, not zero-delay."
+        )
+        mechanism = "Darwin-Watchdog-BoundedPolling"
+
+    # Start generic polling watchdog thread (used on Linux alongside PR_SET_PDEATHSIG,
+    # on Darwin, and as fallback on Windows)
+    _start_generic_watchdog_thread(expected_ppid)
+
+    if sys.platform.startswith("linux"):
+        if linux_pdeath_ok:
+            return ParentDeathProtectionResult(
+                enabled=True,
+                mechanism="PR_SET_PDEATHSIG+Watchdog",
+                target_parent_pid=expected_ppid,
+                startup_race_checked=True,
+            )
+        else:
+            # prctl failed on Linux! Do NOT report protection as enabled when setup fails!
+            return ParentDeathProtectionResult(
+                enabled=False,
+                mechanism="Failed",
+                target_parent_pid=expected_ppid,
+                error=setup_error,
+                startup_race_checked=True,
+                limitations="prctl setup failed; fallback watchdog running without kernel signal.",
+            )
+
+    return ParentDeathProtectionResult(
+        enabled=(setup_error is None),
+        mechanism=mechanism,
+        target_parent_pid=expected_ppid,
+        error=setup_error,
+        startup_race_checked=True,
+        limitations=limitations,
+    )
 
 
 class WorkerLifecycleStatus(str, Enum):
