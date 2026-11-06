@@ -24,6 +24,7 @@ from engine.affinity import (
     AffinityPolicy,
     AffinityResult,
     get_available_system_cpus,
+    get_process_actual_cpu,
     get_process_affinity,
     resolve_worker_affinities,
     set_process_affinity,
@@ -36,6 +37,52 @@ from utils.config import (
 )
 
 logger = logging.getLogger("CoreSync.ProcessManager")
+
+
+def enable_parent_death_protection(parent_pid: Optional[int] = None) -> None:
+    """Configure parent-death signaling and watchdog thread for worker child processes.
+
+    Guarantees that if the CoreSync parent process dies (including SIGKILL or unexpected crash),
+    this worker process will terminate cleanly without surviving as an orphan.
+
+    Dual-defense mechanism:
+    1. Linux kernel PR_SET_PDEATHSIG: Asks the kernel to deliver SIGTERM immediately upon parent exit.
+    2. Cross-platform watchdog thread: Polls getppid() every 100ms. If getppid() != parent_pid
+       (indicating reparenting to init/subreaper), calls os._exit(0) immediately.
+    """
+    target_ppid = parent_pid if (parent_pid is not None and parent_pid > 0) else os.getppid()
+
+    # 1. Linux kernel-level signal on parent death
+    if sys.platform.startswith("linux"):
+        try:
+            import ctypes
+            libc = ctypes.CDLL(None)
+            # PR_SET_PDEATHSIG is 1, signal.SIGTERM is 15
+            libc.prctl(1, signal.SIGTERM, 0, 0, 0)
+        except Exception as e:
+            logger.debug(f"Could not configure PR_SET_PDEATHSIG: {e}")
+
+    # 2. Child-side background polling watchdog thread
+    def _parent_watchdog_loop():
+        while True:
+            time.sleep(0.1)
+            # Check if reparented (ppid changed to 1 or subreaper)
+            curr_ppid = os.getppid()
+            if curr_ppid != target_ppid:
+                # Parent has exited, child was reparented to init
+                os._exit(0)
+            try:
+                if not psutil.pid_exists(target_ppid):
+                    os._exit(0)
+            except Exception:
+                pass
+
+    watchdog = threading.Thread(
+        target=_parent_watchdog_loop,
+        daemon=True,
+        name="CoreSync-ParentDeathWatchdog",
+    )
+    watchdog.start()
 
 
 class WorkerLifecycleStatus(str, Enum):
@@ -57,8 +104,10 @@ class WorkerMetadata:
     parent_pid: int
     engine_name: str
     task_or_chunk_id: Optional[str] = None
+    requested_cpu_affinity: List[int] = field(default_factory=list)
     assigned_cpu_affinity: List[int] = field(default_factory=list)
     actual_cpu_affinity: List[int] = field(default_factory=list)
+    last_observed_cpu: Optional[int] = None
     status: WorkerLifecycleStatus = WorkerLifecycleStatus.INITIALIZING
     start_time: float = field(default_factory=time.time)
     end_time: Optional[float] = None
@@ -147,29 +196,52 @@ class ProcessManager:
         daemon: bool = True,
     ) -> BaseProcess:
         """Spawn a child process under the 'spawn' context with affinity and registration."""
-        proc = self.ctx.Process(target=target, args=args, name=name)
-        proc.daemon = daemon
-        proc.start()
+        assigned_aff = list(affinity_cpus) if affinity_cpus else []
+
+        try:
+            proc = self.ctx.Process(target=target, args=args, name=name)
+            proc.daemon = daemon
+            proc.start()
+        except Exception as e:
+            err = f"Worker process startup failure: {e}"
+            logger.error(f"Failed to start worker '{worker_id}': {err}")
+            fail_meta = WorkerMetadata(
+                worker_id=worker_id,
+                pid=None,
+                parent_pid=os.getpid(),
+                engine_name=engine_name,
+                task_or_chunk_id=task_or_chunk_id,
+                requested_cpu_affinity=list(assigned_aff),
+                assigned_cpu_affinity=list(assigned_aff),
+                status=WorkerLifecycleStatus.FAILED,
+                error_message=err,
+            )
+            self._metadata[worker_id] = fail_meta
+            raise
 
         # Apply CPU affinity before worker proceeds with computational workload
-        assigned_aff = list(affinity_cpus) if affinity_cpus else []
         actual_aff: List[int] = []
+        observed_cpu: Optional[int] = None
 
         if assigned_aff and proc.pid:
             aff_res = set_process_affinity(proc.pid, assigned_aff)
             actual_aff = aff_res.applied_cpus
+            observed_cpu = aff_res.actual_observed_cpu or get_process_actual_cpu(proc.pid)
             if not aff_res.success:
                 logger.warning(f"Could not apply affinity {assigned_aff} to worker {worker_id} (PID {proc.pid}): {aff_res.message}")
         elif proc.pid:
             actual_aff = get_process_affinity(proc.pid)
+            observed_cpu = get_process_actual_cpu(proc.pid)
 
         self.register_worker(
             worker_id=worker_id,
             process=proc,
             engine_name=engine_name,
             task_or_chunk_id=task_or_chunk_id,
+            requested_affinity=assigned_aff,
             assigned_affinity=assigned_aff,
             actual_affinity=actual_aff,
+            last_observed_cpu=observed_cpu,
         )
 
         return proc
@@ -180,8 +252,10 @@ class ProcessManager:
         process: BaseProcess,
         engine_name: str = "Generic",
         task_or_chunk_id: Optional[str] = None,
+        requested_affinity: Optional[List[int]] = None,
         assigned_affinity: Optional[List[int]] = None,
         actual_affinity: Optional[List[int]] = None,
+        last_observed_cpu: Optional[int] = None,
     ) -> WorkerMetadata:
         """Register a worker process and record comprehensive metadata."""
         pid = process.pid
@@ -193,8 +267,10 @@ class ProcessManager:
             parent_pid=parent_pid,
             engine_name=engine_name,
             task_or_chunk_id=task_or_chunk_id,
+            requested_cpu_affinity=list(requested_affinity or assigned_affinity or []),
             assigned_cpu_affinity=list(assigned_affinity or []),
             actual_cpu_affinity=list(actual_affinity or (get_process_affinity(pid) if pid else [])),
+            last_observed_cpu=last_observed_cpu or (get_process_actual_cpu(pid) if pid else None),
             status=WorkerLifecycleStatus.RUNNING,
             start_time=time.time(),
         )
@@ -206,7 +282,10 @@ class ProcessManager:
             with self._registry_lock:
                 self._global_registry[pid] = meta
 
-        logger.debug(f"Registered worker '{worker_id}' (PID {pid}, Engine {engine_name}, Affinity {meta.assigned_cpu_affinity})")
+        logger.debug(
+            f"Registered worker '{worker_id}' (PID {pid}, Engine {engine_name}, "
+            f"Affinity: {meta.assigned_cpu_affinity}, Core: {meta.last_observed_cpu})"
+        )
         return meta
 
     # -------------------------------------------------------------------------
@@ -246,7 +325,7 @@ class ProcessManager:
                 meta.end_time = time.time()
 
     def update_worker_metrics(self, worker_id_or_pid: Union[int, str]) -> None:
-        """Sample CPU% and Memory RSS (MB) for a registered worker."""
+        """Sample CPU%, Memory RSS (MB), and observed running CPU core for a registered worker."""
         meta = self.get_worker_metadata(worker_id_or_pid)
         if not meta or not meta.pid:
             return
@@ -254,6 +333,7 @@ class ProcessManager:
         cpu_p, rss_mb = self.resource_guard.inspect_process_resources(meta.pid)
         meta.cpu_utilization = cpu_p
         meta.memory_rss_mb = rss_mb
+        meta.last_observed_cpu = get_process_actual_cpu(meta.pid)
 
     def poll_workers(self) -> List[WorkerMetadata]:
         """Check all registered workers, update metrics, detect exitcodes, and return metadata."""

@@ -12,6 +12,7 @@ import traceback
 from typing import Any, Optional
 
 from engine.task_parallel.operations import execute_task_kernel
+from engine.process_manager import enable_parent_death_protection
 
 
 @dataclass
@@ -49,6 +50,7 @@ def task_parallel_worker_loop(task_queue, result_queue, stop_event) -> None:
         stop_event: multiprocessing.Event signaling immediate termination.
     """
     worker_pid = os.getpid()
+    enable_parent_death_protection(os.getppid())
 
     while not stop_event.is_set():
         try:

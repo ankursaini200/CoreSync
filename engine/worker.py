@@ -13,6 +13,8 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import multiprocessing as mp
 from multiprocessing.synchronize import Event as EventType
 
+from engine.process_manager import enable_parent_death_protection
+
 def check_worker_isolation() -> None:
     """Verify that PySide6/Qt is not loaded in this worker process."""
     assert "PySide6" not in sys.modules, "Fatal: PySide6 was loaded into worker process!"
@@ -21,6 +23,7 @@ def check_worker_isolation() -> None:
 def worker_init(worker_id: int, affinity: Optional[list[int]] = None) -> None:
     """Initialize worker process, configure CPU affinity, and verify isolation."""
     check_worker_isolation()
+    enable_parent_death_protection(os.getppid())
     if affinity:
         try:
             os.sched_setaffinity(0, affinity)

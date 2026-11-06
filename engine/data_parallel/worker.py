@@ -12,6 +12,7 @@ import traceback
 from typing import Any, Optional
 
 from engine.data_parallel.operations import execute_chunk
+from engine.process_manager import enable_parent_death_protection
 
 
 @dataclass
@@ -56,6 +57,7 @@ def data_parallel_worker_loop(task_queue, result_queue, stop_event) -> None:
         stop_event: multiprocessing.Event signaling immediate termination request.
     """
     worker_pid = os.getpid()
+    enable_parent_death_protection(os.getppid())
 
     while not stop_event.is_set():
         try:

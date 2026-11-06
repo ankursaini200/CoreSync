@@ -19,7 +19,11 @@ from engine.affinity import (
     resolve_worker_affinities,
     set_process_affinity,
 )
-from engine.process_manager import ProcessManager, WorkerLifecycleStatus
+from engine.process_manager import (
+    ProcessManager,
+    WorkerLifecycleStatus,
+    enable_parent_death_protection,
+)
 from utils.cpu_topology import CPUTopology
 
 logger = logging.getLogger("CoreSync.CPUStress")
@@ -39,6 +43,7 @@ def stress_worker_loop(
 
     CRITICAL: Strictly isolated from PySide6 and Qt!
     """
+    enable_parent_death_protection(os.getppid())
     start_time = time.time()
     duty_cycle = max(0.1, min(intensity_pct / 100.0, 1.0))
     chunk_window = 0.1  # 100ms window

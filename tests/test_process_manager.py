@@ -2,6 +2,8 @@
 
 import os
 import platform
+import signal
+import sys
 import time
 from unittest.mock import MagicMock, patch
 
@@ -12,6 +14,7 @@ from engine.affinity import (
     AffinityPolicy,
     AffinityResult,
     get_available_system_cpus,
+    get_process_actual_cpu,
     get_process_affinity,
     resolve_worker_affinities,
     set_process_affinity,
@@ -20,6 +23,7 @@ from engine.process_manager import (
     ProcessManager,
     WorkerLifecycleStatus,
     WorkerMetadata,
+    enable_parent_death_protection,
 )
 from engine.resource_guard import ResourceGuard, ResourceLimits
 from engine.data_parallel.executor import DataParallelExecutor
@@ -42,6 +46,28 @@ def dummy_sleep_worker(duration: float = 1.0):
 def dummy_compute_worker(n: int = 100_000):
     total = sum(i * i for i in range(n))
     return total
+
+
+def _parent_death_worker(ready_event):
+    """Child worker for testing parent-death self-termination."""
+    enable_parent_death_protection(os.getppid())
+    ready_event.set()
+    while True:
+        time.sleep(0.05)
+
+
+def _parent_death_parent(child_pid_queue):
+    """Parent process for testing parent-death self-termination."""
+    import multiprocessing as mp
+    ctx = mp.get_context("spawn")
+    ready = ctx.Event()
+    child = ctx.Process(target=_parent_death_worker, args=(ready,))
+    child.daemon = True
+    child.start()
+    ready.wait(timeout=3.0)
+    child_pid_queue.put(child.pid)
+    while True:
+        time.sleep(0.05)
 
 
 # -----------------------------------------------------------------------------
@@ -459,3 +485,179 @@ def test_core_monitor_page_worker_pinning(qtbot):
     page.update_metrics(snapshot)
     assert 0 in page.core_widgets
     assert "Stress-0" in page.core_widgets[0].worker_lbl.text()
+
+
+# -----------------------------------------------------------------------------
+# 10. Phase 7.1 Verification Audit Tests
+# -----------------------------------------------------------------------------
+def test_forced_parent_death_worker_self_termination():
+    """Verify child worker self-terminates when parent process is killed with SIGKILL."""
+    import multiprocessing as mp
+    ctx = mp.get_context("spawn")
+    q = ctx.Queue()
+    parent = ctx.Process(target=_parent_death_parent, args=(q,))
+    parent.start()
+
+    child_pid = q.get(timeout=3.0)
+    unrelated_pid = os.getpid()
+
+    # Verify both are running initially
+    assert psutil.pid_exists(parent.pid)
+    assert psutil.pid_exists(child_pid)
+    assert psutil.pid_exists(unrelated_pid)
+
+    # Forcefully terminate parent with SIGKILL (kill -9) - no parent cleanup code runs
+    os.kill(parent.pid, signal.SIGKILL)
+    parent.join(timeout=1.0)
+
+    # Verify child exits within 1.0 second (allowing up to 1.5s for scheduling jitter)
+    deadline = time.time() + 1.5
+    child_alive = True
+    while time.time() < deadline:
+        try:
+            p = psutil.Process(child_pid)
+            if not p.is_running() or p.status() == psutil.STATUS_ZOMBIE:
+                child_alive = False
+                break
+        except psutil.NoSuchProcess:
+            child_alive = False
+            break
+        time.sleep(0.05)
+
+    assert not child_alive, f"Child PID {child_pid} remained alive after parent death!"
+    # Verify unrelated process is completely unaffected
+    assert psutil.pid_exists(unrelated_pid)
+
+
+def test_actual_cpu_execution_observation():
+    """Verify that get_process_actual_cpu reports actual CPU core and distinguishes it from affinity."""
+    current_cpu = get_process_actual_cpu(os.getpid())
+    if sys.platform.startswith("linux"):
+        assert current_cpu is not None
+        assert isinstance(current_cpu, int)
+        assert 0 <= current_cpu < os.cpu_count()
+
+    pm = ProcessManager(start_method="spawn")
+    proc = pm.spawn_worker(
+        target=dummy_sleep_worker,
+        args=(1.0,),
+        name="test-actual-cpu",
+        engine_name="TestEngine",
+        worker_id="w-obs-cpu",
+        affinity_cpus=[0],
+    )
+
+    try:
+        meta = pm.get_worker_metadata("w-obs-cpu")
+        assert meta is not None
+        assert meta.assigned_cpu_affinity == [0]
+
+        # Check observed execution core on Linux
+        actual_cpu = get_process_actual_cpu(proc.pid)
+        if sys.platform.startswith("linux"):
+            assert actual_cpu is not None
+            # Being pinned to core 0, if running it will report 0
+            assert actual_cpu == 0
+    finally:
+        pm.terminate_all()
+
+
+def test_worker_startup_failure_tracked_as_failed():
+    """Verify that worker startup failures immediately register FAILED status with error details."""
+    pm = ProcessManager(start_method="spawn")
+
+    with patch.object(pm.ctx, "Process", side_effect=RuntimeError("Simulated fork/exec resource error")):
+        with pytest.raises(RuntimeError, match="Simulated fork/exec resource error"):
+            pm.spawn_worker(
+                target=dummy_sleep_worker,
+                args=(1.0,),
+                name="failed-worker-proc",
+                engine_name="TestEngine",
+                worker_id="fail-w0",
+            )
+
+    meta = pm.get_worker_metadata("fail-w0")
+    assert meta is not None
+    assert meta.status == WorkerLifecycleStatus.FAILED
+    assert meta.pid is None
+    assert "Worker process startup failure" in meta.error_message
+
+
+def test_repeated_shutdown_idempotency():
+    """Verify that calling terminate_all repeatedly is completely safe and idempotent."""
+    pm = ProcessManager(start_method="spawn")
+    p1 = pm.spawn_worker(
+        target=dummy_sleep_worker,
+        args=(2.0,),
+        name="idem-1",
+        engine_name="TestEngine",
+        worker_id="id-1",
+    )
+    p2 = pm.spawn_worker(
+        target=dummy_sleep_worker,
+        args=(2.0,),
+        name="idem-2",
+        engine_name="TestEngine",
+        worker_id="id-2",
+    )
+
+    # Initial terminate
+    pm.terminate_all(coop_timeout=0.2, term_timeout=0.2, kill_timeout=0.2)
+    assert not p1.is_alive()
+    assert not p2.is_alive()
+    assert pm.get_worker_metadata("id-1").status == WorkerLifecycleStatus.TERMINATED
+    assert pm.get_worker_metadata("id-2").status == WorkerLifecycleStatus.TERMINATED
+
+    # Second terminate (idempotency check: should complete with no exceptions)
+    pm.terminate_all(coop_timeout=0.1, term_timeout=0.1, kill_timeout=0.1)
+
+    # Third terminate (idempotency check)
+    pm.terminate_all(coop_timeout=0.1, term_timeout=0.1, kill_timeout=0.1)
+    assert not pm.get_active_workers()
+
+
+def test_resource_guard_worker_validation_explanations():
+    """Verify ResourceGuard validates worker requests and produces explanatory clamp messages."""
+    guard = ResourceGuard()
+
+    # Negative count
+    neg_count, neg_msg = guard.validate_worker_request(-4)
+    assert neg_count == 1
+    assert neg_msg is not None
+    assert "must be >= 1" in neg_msg
+
+    # Zero count
+    zero_count, zero_msg = guard.validate_worker_request(0)
+    assert zero_count == 1
+    assert zero_msg is not None
+    assert "must be >= 1" in zero_msg
+
+    # Excessive count beyond hard cap
+    excessive_count, excessive_msg = guard.validate_worker_request(9999)
+    assert excessive_count <= guard.limits.max_workers
+    assert excessive_msg is not None
+    assert "exceeds safety limit" in excessive_msg
+
+    # Valid count
+    valid_count, valid_msg = guard.validate_worker_request(2)
+    assert valid_count == 2
+    assert valid_msg is None
+
+
+def test_resource_guard_insufficient_memory_rejection():
+    """Verify ResourceGuard rejects execution when memory headroom is insufficient."""
+    guard = ResourceGuard()
+
+    # Mock low available memory (only 50 MB available)
+    mock_vm = MagicMock()
+    mock_vm.available = 50 * 1024 * 1024  # 50 MB
+    mock_vm.percent = 85.0
+
+    with patch("psutil.virtual_memory", return_value=mock_vm):
+        headroom, avail_mb, msg = guard.check_memory_headroom(
+            required_mb=256.0, worker_count=8
+        )
+        assert headroom is False
+        assert round(avail_mb, 1) == 50.0
+        assert "Low system memory warning" in msg
+

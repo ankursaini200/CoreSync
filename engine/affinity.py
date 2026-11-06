@@ -37,11 +37,61 @@ class AffinityResult:
     success: bool
     applied_cpus: List[int]
     requested_cpus: List[int]
-    platform_name: str
+    actual_observed_cpu: Optional[int] = None
+    platform_name: str = ""
     message: Optional[str] = None
 
     def __bool__(self) -> bool:
         return self.success
+
+
+def get_process_actual_cpu(pid: Optional[int] = None) -> Optional[int]:
+    """Retrieve the actual physical/logical CPU core currently executing the process.
+
+    Distinguishes actual execution observation from the allowed CPU affinity mask.
+    Supported on Linux via libc sched_getcpu() for self and /proc/[pid]/stat field 39.
+
+    Returns:
+        Observed logical CPU ID (0..N-1), or None if unsupported, dead, or unavailable.
+    """
+    target_pid = pid if (pid is not None and pid > 0) else os.getpid()
+
+    # Fast path: query current thread/process on Linux via libc
+    if target_pid == os.getpid() and sys.platform.startswith("linux"):
+        try:
+            import ctypes
+            libc = ctypes.CDLL(None)
+            if hasattr(libc, "sched_getcpu"):
+                core_id = libc.sched_getcpu()
+                if core_id >= 0:
+                    return int(core_id)
+        except Exception:
+            pass
+
+    # Inspection path for any target process via Linux /proc/[pid]/stat
+    if sys.platform.startswith("linux"):
+        stat_path = f"/proc/{target_pid}/stat"
+        try:
+            with open(stat_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            # In /proc/[pid]/stat: field 2 (comm) is in parentheses.
+            # Parse from the closing parenthesis to avoid spaces inside comm.
+            rparen_idx = content.rfind(")")
+            if rparen_idx != -1:
+                sub_fields = content[rparen_idx + 1:].split()
+                # Field 39 in stat corresponds to sub_fields[36] (39 - 3 = 36)
+                if len(sub_fields) > 36:
+                    observed = int(sub_fields[36])
+                    if observed >= 0:
+                        return observed
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            return None
+        except Exception as e:
+            logger.debug(f"Error reading /proc/{target_pid}/stat: {e}")
+            return None
+
+    # Not supported or unavailable on non-Linux platforms (Windows, Darwin)
+    return None
 
 
 def get_available_system_cpus() -> List[int]:
@@ -156,10 +206,12 @@ def set_process_affinity(pid: int, cpu_ids: List[int]) -> AffinityResult:
             os.sched_setaffinity(pid, set(target_set))
             actual = get_process_affinity(pid)
             if set(actual) == set(target_set):
+                observed = get_process_actual_cpu(pid)
                 return AffinityResult(
                     success=True,
                     applied_cpus=actual,
                     requested_cpus=target_set,
+                    actual_observed_cpu=observed,
                     platform_name=plat,
                     message="CPU affinity applied successfully via os.sched_setaffinity.",
                 )
@@ -190,10 +242,12 @@ def set_process_affinity(pid: int, cpu_ids: List[int]) -> AffinityResult:
             proc.cpu_affinity(target_set)
             actual = get_process_affinity(pid)
             if set(actual) == set(target_set):
+                observed = get_process_actual_cpu(pid)
                 return AffinityResult(
                     success=True,
                     applied_cpus=actual,
                     requested_cpus=target_set,
+                    actual_observed_cpu=observed,
                     platform_name=plat,
                     message="CPU affinity applied successfully via psutil.",
                 )
