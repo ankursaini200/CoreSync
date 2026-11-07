@@ -24,7 +24,8 @@ htmlcov/
 logs/
 .mplconfig/
 .coresync/
-scratch/*.tmp
+.coresync_benchmarks/
+scratch/
 
 # OS / Editor artifacts
 .DS_Store
