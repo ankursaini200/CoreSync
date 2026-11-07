@@ -27,27 +27,27 @@ from PySide6.QtWidgets import (
 from engine.process_scheduler.timeline import BlockType, SchedulingTimeline, TimelineBlock
 
 
-# High-contrast workstation process colors
+# High-contrast workstation process colors matching rich dark palette
 PROCESS_PALETTE = [
-    QColor("#58a6ff"),  # Blue
-    QColor("#3fb950"),  # Green
-    QColor("#d29922"),  # Gold/Amber
-    QColor("#db61a2"),  # Pink
-    QColor("#bc8cff"),  # Purple
-    QColor("#79c0ff"),  # Light Blue
-    QColor("#f0883e"),  # Orange
-    QColor("#56d364"),  # Lime
-    QColor("#e3b341"),  # Yellow
-    QColor("#f778ba"),  # Rose
+    QColor("#579BFF"),  # Sapphire Blue
+    QColor("#42B883"),  # Emerald
+    QColor("#36C9E8"),  # Cyan
+    QColor("#E6B45C"),  # Amber
+    QColor("#9B83F5"),  # Violet
+    QColor("#58D68D"),  # Mint
+    QColor("#F07178"),  # Coral
+    QColor("#80D8FF"),  # Sky
+    QColor("#FFB74D"),  # Warm Gold
+    QColor("#BA68C8"),  # Orchid
 ]
 
-IDLE_BG = QColor("#1c2128")
-IDLE_BORDER = QColor("#30363d")
-IDLE_TEXT = QColor("#8b949e")
+IDLE_BG = QColor("#151F30")
+IDLE_BORDER = QColor("#293B54")
+IDLE_TEXT = QColor("#8FA0B8")
 
-CS_BG = QColor("#2d2206")
-CS_BORDER = QColor("#d29922")
-CS_TEXT = QColor("#e3b341")
+CS_BG = QColor("#222018")
+CS_BORDER = QColor("#E6B45C")
+CS_TEXT = QColor("#E6B45C")
 
 
 class GanttPaintWidget(QWidget):

@@ -78,10 +78,10 @@ class ExecutionTimelineWidget(QFrame):
         h = self.height()
 
         # Background
-        painter.fillRect(0, 0, w, h, QColor("#161b22"))
+        painter.fillRect(0, 0, w, h, QColor("#151F30"))
 
         if not self._tracks:
-            painter.setPen(QColor("#8b949e"))
+            painter.setPen(QColor("#8FA0B8"))
             painter.setFont(QFont("Inter", 10))
             painter.drawText(0, 0, w, h, Qt.AlignCenter, f"No execution timeline available ({self.domain_label}).")
             return
@@ -97,12 +97,12 @@ class ExecutionTimelineWidget(QFrame):
         row_h = max(14, min(30, int(plot_h / max(1, num_tracks))))
 
         # Draw axis line
-        painter.setPen(QPen(QColor("#30363d"), 1))
+        painter.setPen(QPen(QColor("#293B54"), 1))
         painter.drawLine(margin_left, margin_top + plot_h, margin_left + plot_w, margin_top + plot_h)
 
         # Draw axis ticks
         painter.setFont(QFont("Inter", 8))
-        painter.setPen(QColor("#8b949e"))
+        painter.setPen(QColor("#8FA0B8"))
         for i in range(5):
             frac = i / 4.0
             x = margin_left + int(frac * plot_w)
@@ -115,19 +115,19 @@ class ExecutionTimelineWidget(QFrame):
         for idx, track in enumerate(self._tracks):
             y = margin_top + idx * row_h
             t_label = str(track.get("track_id", f"T-{idx}"))
-            painter.setPen(QColor("#c9d1d9"))
+            painter.setPen(QColor("#E5EAF1"))
             painter.drawText(8, y + 2, margin_left - 14, row_h, Qt.AlignRight | Qt.AlignVCenter, t_label)
 
             # Draw intervals
             for item in track.get("intervals", []):
                 s, e = item[0], item[1]
-                color = item[2] if len(item) > 2 else QColor("#58a6ff")
+                color = item[2] if len(item) > 2 else QColor("#579BFF")
                 x_s = margin_left + int((max(0.0, s) / self._max_val) * plot_w)
                 x_e = margin_left + int((min(self._max_val, e) / self._max_val) * plot_w)
                 box_w = max(2, x_e - x_s)
 
                 painter.fillRect(x_s, y + 2, box_w, row_h - 4, color)
-                painter.setPen(QPen(QColor("#ffffff"), 1))
+                painter.setPen(QPen(QColor("#293B54"), 1))
                 painter.drawRect(x_s, y + 2, box_w, row_h - 4)
 
 

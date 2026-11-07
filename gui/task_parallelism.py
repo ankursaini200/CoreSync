@@ -39,6 +39,7 @@ from engine.task_parallel.task_queue import SchedulingPolicy
 from gui.components.badge import StatusBadge
 from gui.components.dag_canvas import DAGCanvasWidget
 from gui.components.metric_card import MetricCard
+from gui.components.task_gantt import GanttTaskItem, TaskExecutionGanttWidget
 from gui.task_parallel_runner import TaskParallelRunnerThread
 from utils.config import COLOR_TEXT_MUTED
 from utils.system_info import get_system_summary
@@ -94,11 +95,15 @@ class TaskParallelismPage(QWidget):
         dag_card = self._create_dag_card()
         layout.addWidget(dag_card)
 
-        # 5. Active Worker Pool Status Cards
+        # 5. Worker Execution Gantt Timeline Card
+        gantt_card = self._create_gantt_card()
+        layout.addWidget(gantt_card)
+
+        # 6. Active Worker Pool Status Cards
         worker_card = self._create_worker_pool_card()
         layout.addWidget(worker_card)
 
-        # 6. Task Telemetry and Result Table
+        # 7. Task Telemetry and Result Table
         table_card = self._create_task_table_card()
         layout.addWidget(table_card)
 
@@ -381,6 +386,21 @@ class TaskParallelismPage(QWidget):
 
         return card
 
+    def _create_gantt_card(self) -> QFrame:
+        card = QFrame()
+        card.setProperty("class", "card")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
+
+        title = QLabel("Worker Execution Timeline (Gantt)")
+        title.setProperty("class", "heading-2")
+        layout.addWidget(title)
+
+        self.gantt_widget = TaskExecutionGanttWidget()
+        layout.addWidget(self.gantt_widget)
+        return card
+
     def _create_worker_pool_card(self) -> QFrame:
         card = QFrame()
         card.setProperty("class", "card")
@@ -546,6 +566,8 @@ class TaskParallelismPage(QWidget):
         self._load_preset(preset_name)
         self.progress_bar.setValue(0)
         self.lbl_progress_status.setText("Pipeline reset. Ready to execute.")
+        if hasattr(self, "gantt_widget"):
+            self.gantt_widget.set_tasks([])
         self.card_actual_speedup.set_value("-- x")
         self.card_parallelism_ratio.set_value("-- x")
         self.card_worker_utilization.set_value("-- %")
@@ -639,6 +661,23 @@ class TaskParallelismPage(QWidget):
             f"Benchmark completed in {result.makespan_s * 1000:.1f} ms (Sequential: {result.sequential_time_s * 1000:.1f} ms). "
             f"Actual Speedup: {result.actual_speedup:.2f}x | Parallelism Ratio: {result.parallelism_ratio:.2f}x | Utilization: {result.worker_utilization_pct:.1f}%."
         )
+
+        if hasattr(self, "gantt_widget") and result.task_results:
+            items = []
+            t_base = min((r.start_timestamp for r in result.task_results.values() if r.start_timestamp > 0), default=0.0)
+            for tid, r in result.task_results.items():
+                start_ms = max(0.0, (r.start_timestamp - t_base) * 1000) if t_base > 0 else 0.0
+                dur_ms = max(1.0, r.compute_time_s * 1000)
+                t_name = self.current_graph.tasks[tid].name if self.current_graph and tid in self.current_graph.tasks else tid
+                items.append(GanttTaskItem(
+                    task_id=tid,
+                    name=t_name,
+                    worker_id=r.worker_id,
+                    start_ms=start_ms,
+                    duration_ms=dur_ms,
+                    status="completed" if r.success else "failed",
+                ))
+            self.gantt_widget.set_tasks(items, worker_count=result.worker_count, total_time_ms=result.makespan_s * 1000)
 
         self.dag_canvas.update()
         self._update_metrics_summary()

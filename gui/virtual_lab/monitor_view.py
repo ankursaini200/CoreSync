@@ -16,8 +16,11 @@ from PySide6.QtWidgets import (
 
 from engine.virtual_lab.virtual_core import VirtualCore, VirtualCoreState, VirtualCoreType
 from engine.virtual_lab.virtual_cpu import VirtualCPU
+from gui.components.arc_gauge import ArcGaugeWidget
 from gui.components.badge import StatusBadge
+from gui.components.core_heatmap import get_heatmap_colors
 from gui.components.metric_card import MetricCard
+from utils.config import COLOR_ACCENT, COLOR_BORDER, COLOR_TASK, COLOR_TEXT_MUTED, COLOR_TEXT_PRIMARY
 
 
 class VirtualCoreCard(QFrame):
@@ -83,18 +86,28 @@ class VirtualCoreCard(QFrame):
         layout.addLayout(bar_layout)
 
     def update_state(self) -> None:
-        """Refresh card visuals from internal VirtualCore state."""
+        """Refresh card visuals from internal VirtualCore state with dynamic heatmap styling."""
         util = self.core.simulated_utilization
         self.bar.setValue(int(util))
         self.label_pct.setText(f"{util:.1f}%")
 
+        bg_col, border_col, accent_col = get_heatmap_colors(util)
+        self.label_pct.setStyleSheet(f"font-size: 11px; font-weight: 700; color: {accent_col.name()};")
+        self.setStyleSheet(
+            f"QFrame {{"
+            f"  background-color: {bg_col.name()};"
+            f"  border: 1px solid {border_col.name()};"
+            f"  border-radius: 8px;"
+            f"}}"
+        )
+
         if self.core.state == VirtualCoreState.BUSY and self.core.current_task:
             task = self.core.current_task
             self.label_task.setText(f"Task: {task.name} ({task.remaining_ticks:.0f} ticks left)")
-            self.label_task.setStyleSheet("font-size: 11px; color: #58a6ff; font-weight: 600;")
+            self.label_task.setStyleSheet(f"font-size: 11px; color: {accent_col.name()}; font-weight: 600;")
         else:
             self.label_task.setText("Task: None (IDLE)")
-            self.label_task.setStyleSheet("font-size: 11px; color: #8b949e;")
+            self.label_task.setStyleSheet("font-size: 11px; color: #8FA0B8;")
 
 
 class VirtualMonitorPage(QWidget):
@@ -168,6 +181,24 @@ class VirtualMonitorPage(QWidget):
     def _create_metrics_grid(self) -> QHBoxLayout:
         layout = QHBoxLayout()
         layout.setSpacing(14)
+
+        # Arc Gauge for Simulated Virtual Load
+        card_gauge = QFrame()
+        card_gauge.setProperty("class", "card")
+        l_g = QHBoxLayout(card_gauge)
+        l_g.setContentsMargins(14, 10, 14, 10)
+        self.gauge_sim_load = ArcGaugeWidget(
+            title="SIMULATED LOAD",
+            value=0.0,
+            max_value=100.0,
+            unit="%",
+            subtitle="DISCRETE TICKS",
+            color_start=COLOR_TASK,
+            color_end="#FDE68A",
+            parent=card_gauge,
+        )
+        l_g.addWidget(self.gauge_sim_load)
+        layout.addWidget(card_gauge)
 
         self.card_util = MetricCard(
             title="Simulated Aggregate Load",
@@ -279,6 +310,9 @@ class VirtualMonitorPage(QWidget):
         self.card_clock.set_value(f"{self.virtual_cpu.current_tick} Ticks")
         self.card_busy.set_value(f"{busy_count} / {total_cores} Active")
         self.card_busy.set_status("Executing" if busy_count > 0 else "Idle", "danger" if busy_count > 0 else "neutral")
+
+        if hasattr(self, "gauge_sim_load"):
+            self.gauge_sim_load.set_value(overall_util, subtitle=f"{busy_count}/{total_cores} CORES BUSY")
 
         for card in self.core_cards.values():
             card.update_state()

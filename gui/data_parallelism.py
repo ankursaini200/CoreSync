@@ -36,6 +36,7 @@ from engine.data_parallel.executor import (
 )
 from gui.components.badge import StatusBadge
 from gui.components.metric_card import MetricCard
+from gui.components.pipeline_visualizer import DataPipelineVisualizerWidget
 from gui.data_parallel_runner import DataParallelRunnerThread
 
 
@@ -59,6 +60,7 @@ class DataParallelismPage(QWidget):
 
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         outer_layout.addWidget(scroll)
 
         container = QWidget()
@@ -75,7 +77,11 @@ class DataParallelismPage(QWidget):
         config_card = self._create_config_card()
         layout.addWidget(config_card)
 
-        # 3. Live Benchmark Results Grid
+        # 3. Execution Pipeline Visualizer Card
+        pipeline_card = self._create_pipeline_card()
+        layout.addWidget(pipeline_card)
+
+        # 4. Live Benchmark Results Grid
         metrics_grid = self._create_metrics_grid()
         layout.addLayout(metrics_grid)
 
@@ -245,6 +251,29 @@ class DataParallelismPage(QWidget):
 
         return card
 
+    def _create_pipeline_card(self) -> QFrame:
+        card = QFrame()
+        card.setProperty("class", "card")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 14, 20, 14)
+        layout.setSpacing(10)
+
+        title = QLabel("Data Parallel Execution Pipeline")
+        title.setProperty("class", "heading-2")
+        layout.addWidget(title)
+
+        self.pipeline_vis = DataPipelineVisualizerWidget()
+        auto_w = DataParallelExecutor.determine_automatic_workers(self.spin_size.value(), "transcendental")
+        self.pipeline_vis.set_pipeline_state(
+            0,
+            dataset_size=self.spin_size.value(),
+            worker_count=auto_w,
+            chunks_count=auto_w,
+            verified=True,
+        )
+        layout.addWidget(self.pipeline_vis)
+        return card
+
     def _create_metrics_grid(self) -> QHBoxLayout:
         layout = QHBoxLayout()
         layout.setSpacing(14)
@@ -398,6 +427,14 @@ class DataParallelismPage(QWidget):
             self.spin_size.setValue(spec.default_dataset_size)
             self.lbl_size.setText(f"Dataset Size ({spec.size_label}):")
             self._update_auto_worker_count()
+            if hasattr(self, "pipeline_vis"):
+                self.pipeline_vis.set_pipeline_state(
+                    0,
+                    dataset_size=self.spin_size.value(),
+                    worker_count=self.spin_workers.value(),
+                    chunks_count=self.spin_workers.value(),
+                    verified=True,
+                )
 
     def _on_mode_changed(self, index: int) -> None:
         if index == 0:  # Automatic
@@ -412,6 +449,14 @@ class DataParallelismPage(QWidget):
             size = self.spin_size.value()
             auto_w = DataParallelExecutor.determine_automatic_workers(size, op_id)
             self.spin_workers.setValue(auto_w)
+            if hasattr(self, "pipeline_vis"):
+                self.pipeline_vis.set_pipeline_state(
+                    0,
+                    dataset_size=size,
+                    worker_count=auto_w,
+                    chunks_count=auto_w,
+                    verified=True,
+                )
 
     def _on_start_benchmark(self) -> None:
         op_id = self.combo_ops.currentData()
@@ -425,6 +470,14 @@ class DataParallelismPage(QWidget):
         self.progress_bar.setValue(0)
         self.lbl_progress_status.setText("Initializing benchmark engine...")
         self.badge_hardware.set_status("Benchmark In Progress", "warning")
+        if hasattr(self, "pipeline_vis"):
+            self.pipeline_vis.set_pipeline_state(
+                2,
+                dataset_size=size,
+                worker_count=workers,
+                chunks_count=workers,
+                verified=False,
+            )
 
         policy_map = {
             0: AffinityPolicy.AUTOMATIC,
@@ -469,6 +522,16 @@ class DataParallelismPage(QWidget):
         self.card_efficiency.set_value(f"{result.efficiency_pct:.1f} %")
         self.card_seq_time.set_value(f"{result.sequential_time_s * 1000:.1f} ms")
         self.card_par_time.set_value(f"{result.parallel_time_s * 1000:.1f} ms")
+
+        if hasattr(self, "pipeline_vis"):
+            self.pipeline_vis.set_pipeline_state(
+                3,
+                dataset_size=getattr(result, "dataset_size", 1_000_000),
+                worker_count=result.worker_count,
+                chunks_count=len(result.chunks),
+                verified=result.verification.passed,
+                makespan_ms=result.parallel_time_s * 1000,
+            )
 
         if result.throughput_items_per_s >= 1_000_000:
             tp_str = f"{result.throughput_items_per_s / 1_000_000:.2f} M/s"
@@ -521,6 +584,8 @@ class DataParallelismPage(QWidget):
         self.btn_cancel.setEnabled(False)
         self.badge_hardware.set_status("Benchmark Failed / Cancelled", "danger")
         self.lbl_progress_status.setText(error_msg)
+        if hasattr(self, "pipeline_vis"):
+            self.pipeline_vis.set_pipeline_state(0, verified=False)
 
     def shutdown(self) -> None:
         """Clean up thread and active workers upon window close."""

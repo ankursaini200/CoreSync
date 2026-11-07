@@ -521,7 +521,7 @@ tests/test_windows_native_compat.py ............................        [100%]
 
 ## Workstation Screenshots Gallery
 
-CoreSync features a cohesive, professional minimal dark theme (`#10141B` palette) optimized for extended engineering sessions. High-resolution screenshots of all 13 workstation pages are maintained in `docs/screenshots/`:
+CoreSync features a sophisticated dark engineering workstation theme (`#0B1020` deep navy & slate palette) inspired by modern hardware monitoring consoles, featuring antialiased circular arc gauges, cubic Bézier gradient area sparklines, multi-tier core heatmaps, execution pipeline diagrams, and vector Gantt timelines. High-resolution screenshots of all 13 workstation pages are maintained in `docs/screenshots/`:
 
 | Page Index | Workstation Module | Screenshot Artifact | Description |
 | :---: | :--- | :--- | :--- |

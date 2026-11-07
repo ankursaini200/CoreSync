@@ -19,17 +19,20 @@ from PySide6.QtWidgets import (
 )
 
 from utils.config import (
-    COLOR_P_CORE,
-    COLOR_E_CORE,
-    COLOR_TEXT_MUTED,
-    COLOR_BORDER,
     COLOR_ACCENT,
+    COLOR_ACCENT_SECONDARY,
+    COLOR_BORDER,
+    COLOR_E_CORE,
+    COLOR_P_CORE,
+    COLOR_TEXT_MUTED,
 )
 from utils.system_info import SystemSummary, get_system_summary
 from utils.cpu_topology import CoreType
 from monitoring.cpu_monitor import CPUMetricsSnapshot
 from gui.components.badge import StatusBadge
+from gui.components.core_heatmap import get_heatmap_colors
 from gui.components.metric_card import MetricCard
+from gui.components.sparkline_chart import RealtimeAreaChartWidget
 
 
 class CoreWidget(QFrame):
@@ -109,12 +112,23 @@ class CoreWidget(QFrame):
         layout.addLayout(metrics_row)
 
     def update_metrics(self, percent: float, freq_mhz: Optional[float] = None) -> None:
-        """Update live utilization percentage and current frequency."""
+        """Update live utilization percentage, current frequency, and heatmap styling."""
         val = max(0, min(int(round(percent)), 100))
         self.progress_bar.setValue(val)
         self.percent_lbl.setText(f"{percent:.1f}%")
         if freq_mhz is not None and freq_mhz > 0:
             self.freq_lbl.setText(f"{int(round(freq_mhz))} MHz")
+
+        if self._is_highlighted and not self.worker_lbl.isVisible():
+            bg_col, border_col, accent_col = get_heatmap_colors(percent)
+            self.percent_lbl.setStyleSheet(f"font-size: 11px; font-weight: 700; color: {accent_col.name()};")
+            self.setStyleSheet(
+                f"QFrame#coreBox_{self.cpu_id} {{"
+                f"  background-color: {bg_col.name()};"
+                f"  border: 1px solid {border_col.name()};"
+                f"  border-radius: 8px;"
+                f"}}"
+            )
 
     def update_worker_pinning(self, worker_names: List[str]) -> None:
         """Highlight core if actively assigned to a CoreSync worker process."""
@@ -169,11 +183,23 @@ class CoreMonitorPage(QWidget):
         topology_grid = self._create_topology_grid()
         layout.addLayout(topology_grid)
 
-        # 3. CPU Affinity Controls & Preview Bar
+        # 3. CPU Activity Timeline (Real-Time Spline Area Chart)
+        self.timeline_chart = RealtimeAreaChartWidget(
+            max_points=60,
+            title="REAL-TIME CORE ACTIVITY TIMELINE (AVERAGE VS PEAK CORE LOAD)",
+            series1_name="Average Core Load",
+            series1_color=COLOR_ACCENT,
+            series2_name="Peak Core Load",
+            series2_color=COLOR_ACCENT_SECONDARY,
+            parent=container,
+        )
+        layout.addWidget(self.timeline_chart)
+
+        # 4. CPU Affinity Controls & Preview Bar
         affinity_card = self._create_affinity_card()
         layout.addWidget(affinity_card)
 
-        # 4. Live Logical CPU Utilization Grid
+        # 5. Live Logical CPU Utilization Grid
         cores_panel = self._create_cores_panel()
         layout.addWidget(cores_panel)
 
@@ -384,6 +410,11 @@ class CoreMonitorPage(QWidget):
         """Receive live metrics update from CPUMonitorService."""
         per_cpu = snapshot.per_cpu_percent
         freqs = snapshot.per_cpu_freq_mhz
+
+        # Update real-time core timeline chart
+        avg_val = snapshot.overall_percent
+        max_val = max(per_cpu) if per_cpu else 0.0
+        self.timeline_chart.add_sample(avg_val, max_val)
 
         # Map active CoreSync workers to logical CPU IDs
         core_to_workers: Dict[int, List[str]] = {}

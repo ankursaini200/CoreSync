@@ -21,8 +21,10 @@ from PySide6.QtWidgets import (
 from engine.affinity import AffinityPolicy, get_available_system_cpus
 from engine.process_manager import ProcessManager, WorkerLifecycleStatus, WorkerMetadata
 from gui.components.badge import StatusBadge
+from gui.components.distribution_bar import ProcessDistributionWidget
 from gui.components.metric_card import MetricCard
 from monitoring.cpu_monitor import CPUMetricsSnapshot
+from utils.config import COLOR_ACCENT, COLOR_MEMORY
 from utils.hardware.base import ProcessInfo
 
 
@@ -56,15 +58,53 @@ class RealProcessPage(QWidget):
         metrics_grid = self._create_metrics_grid()
         layout.addLayout(metrics_grid)
 
-        # 3. CoreSync Worker Processes Section (Dedicated Control Card)
+        # 3. Process Distribution Visualizer Row (CPU & Memory)
+        dist_row = self._create_distribution_row()
+        layout.addLayout(dist_row)
+
+        # 4. CoreSync Worker Processes Section (Dedicated Control Card)
         cs_workers_card = self._create_coresync_workers_card()
         layout.addWidget(cs_workers_card)
 
-        # 4. OS Processes Table Card
+        # 5. OS Processes Table Card
         table_card = self._create_os_table_card()
         layout.addWidget(table_card)
 
         layout.addStretch(1)
+
+    def _create_distribution_row(self) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setSpacing(14)
+
+        card_cpu = QFrame()
+        card_cpu.setProperty("class", "card")
+        l_c = QVBoxLayout(card_cpu)
+        l_c.setContentsMargins(16, 12, 16, 12)
+        self.dist_cpu = ProcessDistributionWidget(
+            title="TOP PROCESSES BY CPU LOAD",
+            mode="cpu",
+            bar_color=COLOR_ACCENT,
+            max_rows=5,
+            parent=card_cpu,
+        )
+        l_c.addWidget(self.dist_cpu)
+        row.addWidget(card_cpu)
+
+        card_mem = QFrame()
+        card_mem.setProperty("class", "card")
+        l_m = QVBoxLayout(card_mem)
+        l_m.setContentsMargins(16, 12, 16, 12)
+        self.dist_mem = ProcessDistributionWidget(
+            title="TOP PROCESSES BY PHYSICAL MEMORY (RSS)",
+            mode="memory",
+            bar_color=COLOR_MEMORY,
+            max_rows=5,
+            parent=card_mem,
+        )
+        l_m.addWidget(self.dist_mem)
+        row.addWidget(card_mem)
+
+        return row
 
     def _create_header_card(self) -> QFrame:
         card = QFrame()
@@ -374,3 +414,8 @@ class RealProcessPage(QWidget):
             self.table.setItem(row, 3, item_mem)
             self.table.setItem(row, 4, item_memp)
             self.table.setItem(row, 5, item_cs)
+
+        # 3. Update Visual Distribution Bar Charts
+        if hasattr(self, "dist_cpu") and top_procs:
+            self.dist_cpu.set_data(top_procs, snapshot.coresync_worker_pids)
+            self.dist_mem.set_data(top_procs, snapshot.coresync_worker_pids)

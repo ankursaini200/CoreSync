@@ -22,21 +22,22 @@ from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 from engine.analytics.amdahl import AmdahlCalculator
 
 
-# Professional workstation theme palette
+# Rich Data Visualization Palette
 PALETTE = {
-    "bg": QColor("#0d1117"),
-    "card_bg": QColor("#161b22"),
-    "border": QColor("#30363d"),
-    "grid": QColor("#21262d"),
-    "text": QColor("#c9d1d9"),
-    "text_muted": QColor("#8b949e"),
-    "blue": QColor("#58a6ff"),
-    "green": QColor("#3fb950"),
-    "amber": QColor("#d29922"),
-    "purple": QColor("#bc8cff"),
-    "pink": QColor("#db61a2"),
-    "red": QColor("#f85149"),
-    "cyan": QColor("#39c5cf"),
+    "bg": QColor("#0B1020"),
+    "card_bg": QColor("#151F30"),
+    "card_alt": QColor("#1C283E"),
+    "border": QColor("#293B54"),
+    "grid": QColor("#293B54"),
+    "text": QColor("#E5EAF1"),
+    "text_muted": QColor("#8FA0B8"),
+    "blue": QColor("#579BFF"),
+    "green": QColor("#42B883"),
+    "amber": QColor("#E6B45C"),
+    "purple": QColor("#9B83F5"),
+    "pink": QColor("#E58A8A"),
+    "red": QColor("#F07178"),
+    "cyan": QColor("#36C9E8"),
 }
 
 
