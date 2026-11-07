@@ -1,0 +1,255 @@
+{
+  "comparison_id": "history-test-session-001",
+  "timestamp": "2026-11-07T06:50:27.496880+00:00",
+  "session_type": "real_vs_virtual_comparison",
+  "configuration": {
+    "comparison_id": "history-test-session-001",
+    "execution_mode": "compare_both",
+    "workload": {
+      "workload_type": "task_parallel",
+      "workload_id": "diamond",
+      "workload_name": "Diamond DAG",
+      "dataset_size": 10000,
+      "task_count": 4,
+      "extra_params": {}
+    },
+    "real_config": {
+      "worker_count": 2,
+      "pinned_cpus": null,
+      "timeout_s": 15.0
+    },
+    "virtual_config": {
+      "virtual_core_count": 2,
+      "enable_hybrid": false,
+      "p_core_count": 4,
+      "e_core_count": 4,
+      "p_core_speed": 1.5,
+      "e_core_speed": 0.8,
+      "standard_speed": 1.0,
+      "scheduling_algorithm": "ROUND_ROBIN",
+      "time_quantum": 3,
+      "max_simulation_ticks": 50000
+    }
+  },
+  "real_result": {
+    "status": "completed",
+    "wall_clock_time_s": 0.188852,
+    "worker_count": 2,
+    "worker_intervals": [
+      [
+        4057.370026,
+        4057.385562
+      ],
+      [
+        4057.388782,
+        4057.393674
+      ],
+      [
+        4057.388755,
+        4057.400118
+      ],
+      [
+        4057.401342,
+        4057.411303
+      ]
+    ],
+    "aggregate_worker_compute_time_s": 0.041751,
+    "compute_interval_union_s": 0.03686,
+    "no_worker_compute_time_s": 0.151993,
+    "sequential_baseline_s": 0.042103,
+    "actual_speedup": 0.2229,
+    "worker_utilization_pct": 11.05,
+    "peak_memory_rss_mb": 7.81,
+    "host_cpu_percent": 9.9,
+    "task_completions": [
+      {
+        "task_id": "t1_init",
+        "worker_id": 0,
+        "process_id": 42,
+        "duration_s": 0.015535,
+        "finish_timestamp": 4057.385562,
+        "status": "COMPLETED"
+      },
+      {
+        "task_id": "t2_matrix",
+        "worker_id": 1,
+        "process_id": 42,
+        "duration_s": 0.004892,
+        "finish_timestamp": 4057.393674,
+        "status": "COMPLETED"
+      },
+      {
+        "task_id": "t3_primes",
+        "worker_id": 0,
+        "process_id": 43,
+        "duration_s": 0.011364,
+        "finish_timestamp": 4057.400118,
+        "status": "COMPLETED"
+      },
+      {
+        "task_id": "t4_reduce",
+        "worker_id": 0,
+        "process_id": 42,
+        "duration_s": 0.009961,
+        "finish_timestamp": 4057.411303,
+        "status": "COMPLETED"
+      }
+    ],
+    "verification_passed": true,
+    "error_message": null,
+    "provenance": "directly_measured"
+  },
+  "virtual_result": {
+    "status": "completed",
+    "virtual_makespan_ticks": 431,
+    "simulated_clock_ticks": 431,
+    "virtual_core_utilization_pct": 45.24,
+    "virtual_core_count": 2,
+    "virtual_core_allocation": {
+      "0": [
+        "[t1_init] Dataset Generation & Pre-processing",
+        "[t2_matrix] Eigen & Matrix Transform",
+        "[t4_reduce] Pipeline Summary & Moments"
+      ],
+      "1": [
+        "[t3_primes] Entropy Prime Sieve"
+      ]
+    },
+    "task_completion_order": [
+      {
+        "task_id": "t1_init",
+        "task_number": 1,
+        "name": "[t1_init] Dataset Generation & Pre-processing",
+        "assigned_core_id": 0,
+        "arrival_tick": 0,
+        "start_tick": 0,
+        "finish_tick": 111,
+        "turnaround_ticks": 111,
+        "waiting_ticks": 0,
+        "status": "COMPLETED"
+      },
+      {
+        "task_id": "t3_primes",
+        "task_number": 3,
+        "name": "[t3_primes] Entropy Prime Sieve",
+        "assigned_core_id": 1,
+        "arrival_tick": 111,
+        "start_tick": 111,
+        "finish_tick": 260,
+        "turnaround_ticks": 149,
+        "waiting_ticks": 0,
+        "status": "COMPLETED"
+      },
+      {
+        "task_id": "t2_matrix",
+        "task_number": 2,
+        "name": "[t2_matrix] Eigen & Matrix Transform",
+        "assigned_core_id": 0,
+        "arrival_tick": 111,
+        "start_tick": 111,
+        "finish_tick": 297,
+        "turnaround_ticks": 186,
+        "waiting_ticks": 0,
+        "status": "COMPLETED"
+      },
+      {
+        "task_id": "t4_reduce",
+        "task_number": 4,
+        "name": "[t4_reduce] Pipeline Summary & Moments",
+        "assigned_core_id": 0,
+        "arrival_tick": 297,
+        "start_tick": 297,
+        "finish_tick": 431,
+        "turnaround_ticks": 134,
+        "waiting_ticks": 0,
+        "status": "COMPLETED"
+      }
+    ],
+    "scheduling_events": [
+      {
+        "tick": 111,
+        "event": "TASK_COMPLETED",
+        "task_id": "t1_init",
+        "core_id": 0
+      },
+      {
+        "tick": 111,
+        "event": "TASK_UNBLOCKED",
+        "task_id": "[t2_matrix] Eigen & Matrix Transform"
+      },
+      {
+        "tick": 111,
+        "event": "TASK_UNBLOCKED",
+        "task_id": "[t3_primes] Entropy Prime Sieve"
+      },
+      {
+        "tick": 260,
+        "event": "TASK_COMPLETED",
+        "task_id": "t3_primes",
+        "core_id": 1
+      },
+      {
+        "tick": 297,
+        "event": "TASK_COMPLETED",
+        "task_id": "t2_matrix",
+        "core_id": 0
+      },
+      {
+        "tick": 297,
+        "event": "TASK_UNBLOCKED",
+        "task_id": "[t4_reduce] Pipeline Summary & Moments"
+      },
+      {
+        "tick": 431,
+        "event": "TASK_COMPLETED",
+        "task_id": "t4_reduce",
+        "core_id": 0
+      }
+    ],
+    "simulated_throughput_tasks_per_tick": 0.009281,
+    "avg_waiting_ticks": 0.0,
+    "avg_turnaround_ticks": 145.0,
+    "preemption_count": 0,
+    "error_message": null,
+    "provenance": "simulated_virtual"
+  },
+  "analysis": {
+    "workload_equivalence": true,
+    "workload_equivalence_details": "Workloads matched: Both executed 4 logical DAG tasks for 'Diamond DAG'.",
+    "task_count_match": true,
+    "completion_order_concordance": 0.8333,
+    "real_worker_count": 2,
+    "virtual_core_count": 2,
+    "resource_allocation_ratio": 1.0,
+    "real_utilization_pct": 11.05,
+    "virtual_utilization_pct": 45.24,
+    "utilization_difference_pct": -34.19,
+    "scheduling_policy_effects": [
+      "Virtual Lab Policy: Round Robin",
+      "Virtual Symmetric Topology: Homogeneous Standard Virtual Cores (1.0x)"
+    ],
+    "explanatory_notes": [
+      "CLOCK DOMAIN BOUNDARY: Real System wall-clock elapsed time (measured in seconds via high-resolution monotonic timer) and Virtual Lab simulation time (measured in discrete logical ticks) belong to distinct clock domains. They are never divided.",
+      "REAL SYSTEM: Reflects physical OS process management, memory paging, inter-process communication serialization, and host kernel scheduling delays.",
+      "VIRTUAL LAB: Reflects idealized software-simulated processor cores, discrete tick advancing, and educational scheduling algorithms.",
+      "UTILIZATION COMPARISON: Real worker utilization was 11.1% (cumulative compute W*s / capacity), while Virtual core utilization was 45.2% (busy ticks / capacity ticks)."
+    ],
+    "provenance": "mathematically_derived"
+  },
+  "hardware_metadata": {
+    "cpu_model": "13th Gen Intel(R) Core(TM) i7-13650HX",
+    "cpu_vendor": "GenuineIntel",
+    "physical_cores": 14,
+    "total_logical_cores": 20,
+    "architecture": "x86_64",
+    "operating_system": "Arch Linux (Linux 7.2.14-arch1-1)",
+    "total_ram_gb": 15.32,
+    "available_ram_gb": 5.49,
+    "is_hybrid": true,
+    "p_core_count": 12,
+    "e_core_count": 8
+  },
+  "success": true,
+  "cancelled": false,
+  "error_message": null
+}

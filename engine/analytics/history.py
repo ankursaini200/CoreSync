@@ -112,20 +112,21 @@ class BenchmarkHistoryManager:
                     data = json.load(f)
 
                 # Validate essential fields
-                b_id = data.get("benchmark_id", p.stem)
-                engine_name = data.get("engine_name", data.get("engine_type", "Unknown"))
-                workload = data.get("workload_name", "Unknown")
-                ts = data.get("start_timestamp", "")
+                b_id = data.get("benchmark_id", data.get("comparison_id", p.stem))
+                is_comp = data.get("session_type") == "real_vs_virtual_comparison" or "comparison_id" in data
+                engine_name = "Real vs Virtual Comparison" if is_comp else data.get("engine_name", data.get("engine_type", "Unknown"))
+                workload = data.get("workload_name", data.get("configuration", {}).get("workload", {}).get("workload_name", "Unknown"))
+                ts = data.get("start_timestamp", data.get("timestamp", ""))
                 speedup_stat = data.get("statistics", {}).get("speedup", {})
                 mean_speedup = speedup_stat.get("mean", 1.0)
                 eff_stat = data.get("statistics", {}).get("efficiency_pct", {})
                 mean_eff = eff_stat.get("mean", 100.0)
-                verified = data.get("verification_passed", False)
-                workers = data.get("worker_count", 1)
+                verified = data.get("verification_passed", data.get("success", False))
+                workers = data.get("worker_count", data.get("configuration", {}).get("real_config", {}).get("worker_count", 1))
 
                 sessions.append({
                     "benchmark_id": b_id,
-                    "engine_type": data.get("engine_type"),
+                    "engine_type": "comparison" if is_comp else data.get("engine_type"),
                     "engine_name": engine_name,
                     "workload_name": workload,
                     "worker_count": workers,
@@ -145,6 +146,39 @@ class BenchmarkHistoryManager:
     def list_summaries(self) -> List[Dict[str, Any]]:
         """Alias for list_sessions."""
         return self.list_sessions()
+
+    def list_comparisons(self) -> List[Dict[str, Any]]:
+        """Scan storage directory and return index of all Real vs Virtual comparison records."""
+        if not self.storage_dir.exists():
+            return []
+        comparisons = []
+        for p in self.storage_dir.glob("*.json"):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if data.get("session_type") == "real_vs_virtual_comparison" or "comparison_id" in data:
+                    c_id = data.get("comparison_id", p.stem)
+                    cfg = data.get("configuration", {})
+                    w_name = cfg.get("workload", {}).get("workload_name", "Unknown")
+                    mode = cfg.get("execution_mode", "compare_both")
+                    ts = data.get("timestamp", "")
+                    success = data.get("success", True)
+                    comparisons.append({
+                        "comparison_id": c_id,
+                        "workload_name": w_name,
+                        "execution_mode": mode,
+                        "timestamp": ts,
+                        "success": success,
+                        "file_path": str(p),
+                    })
+            except Exception:
+                continue
+        comparisons.sort(key=lambda s: s.get("timestamp", ""), reverse=True)
+        return comparisons
+
+    def load_comparison(self, comparison_id: str) -> Optional[Dict[str, Any]]:
+        """Load comparison session dictionary by comparison_id."""
+        return self.load_session(comparison_id)
 
     def load_session(self, benchmark_id: str) -> Optional[Dict[str, Any]]:
         """Load complete benchmark session record by ID.
@@ -189,3 +223,14 @@ class BenchmarkHistoryManager:
             except Exception:
                 pass
         return deleted_count
+
+
+def list_comparisons(storage_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """Convenience module function to list comparison records."""
+    return BenchmarkHistoryManager(storage_dir).list_comparisons()
+
+
+def load_comparison(comparison_id: str, storage_dir: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """Convenience module function to load a comparison record."""
+    return BenchmarkHistoryManager(storage_dir).load_comparison(comparison_id)
+

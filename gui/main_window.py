@@ -35,6 +35,7 @@ from gui.data_parallelism import DataParallelismPage
 from gui.task_parallelism import TaskParallelismPage
 from gui.performance import PerformancePage
 from gui.settings import SettingsPage
+from gui.comparison import ComparisonPage
 
 from engine.virtual_lab.virtual_cpu import VirtualCPU
 from engine.virtual_lab.virtual_scheduler import VirtualScheduler
@@ -56,6 +57,7 @@ class MainWindow(QMainWindow):
         9: ("Performance Analytics", "Speedup, Efficiency & Amdahl's Law"),
         10: ("Settings", "Process Timeouts, Engine & Probing Config"),
         11: ("Process Scheduler", "CPU Scheduling Algorithms & Gantt Timeline"),
+        12: ("Real vs Virtual Comparison", "Host Hardware vs Software-Simulated Virtual CPU Lab"),
     }
 
     def __init__(self, start_monitor: bool = True):
@@ -127,6 +129,7 @@ class MainWindow(QMainWindow):
         self.page_performance = PerformancePage(self)
         self.page_settings = SettingsPage(self)
         self.page_process_scheduler = SchedulerViewPage(self)
+        self.page_comparison = ComparisonPage(self)
 
         self.pages.addWidget(self.page_dashboard)    # Index 0
         self.pages.addWidget(self.page_core)         # Index 1
@@ -140,6 +143,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.page_performance)  # Index 9
         self.pages.addWidget(self.page_settings)     # Index 10
         self.pages.addWidget(self.page_process_scheduler)  # Index 11
+        self.pages.addWidget(self.page_comparison)   # Index 12
 
         # Connect Dashboard quick navigation requests
         self.page_dashboard.navigate_requested.connect(self.navigate_to_page)
@@ -192,8 +196,9 @@ class MainWindow(QMainWindow):
                 ("Data Parallelism", 7),
                 ("Task Parallelism", 8),
             ]),
-            ("ANALYTICS & CONFIG", [
+            ("ANALYTICS & COMPARISON", [
                 ("Performance Analytics", 9),
+                ("Real vs Virtual Comparison", 12),
                 ("Settings", 10),
             ]),
         ]
@@ -285,6 +290,8 @@ class MainWindow(QMainWindow):
             self.page_data.shutdown()
         if hasattr(self, "page_task"):
             self.page_task.shutdown()
+        if hasattr(self, "page_comparison"):
+            self.page_comparison.shutdown()
         if getattr(self, "cpu_monitor", None) is not None and self.cpu_monitor.is_running():
             self.cpu_monitor.stop(timeout_ms=1000)
 

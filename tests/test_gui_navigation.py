@@ -17,12 +17,13 @@ from gui.task_parallelism import TaskParallelismPage
 from gui.performance import PerformancePage
 from gui.settings import SettingsPage
 from gui.scheduler_view import SchedulerViewPage
+from gui.comparison import ComparisonPage
 
 
 def test_main_window_all_pages(qapp):
-    """Verify that MainWindow initializes all 12 workstation pages."""
+    """Verify that MainWindow initializes all 13 workstation pages."""
     window = MainWindow(start_monitor=False)
-    assert window.pages.count() == 12
+    assert window.pages.count() == 13
 
     assert isinstance(window.pages.widget(0), DashboardPage)
     assert isinstance(window.pages.widget(1), CoreMonitorPage)
@@ -36,15 +37,16 @@ def test_main_window_all_pages(qapp):
     assert isinstance(window.pages.widget(9), PerformancePage)
     assert isinstance(window.pages.widget(10), SettingsPage)
     assert isinstance(window.pages.widget(11), SchedulerViewPage)
+    assert isinstance(window.pages.widget(12), ComparisonPage)
     window.close()
 
 
 def test_sidebar_navigation_switching(qapp):
-    """Verify that clicking each of the 12 sidebar buttons switches the active page."""
+    """Verify that clicking each of the 13 sidebar buttons switches the active page."""
     window = MainWindow(start_monitor=False)
     assert window.pages.currentIndex() == 0
 
-    for idx in range(12):
+    for idx in range(13):
         btn = window.nav_buttons[idx]
         btn.click()
         assert window.pages.currentIndex() == idx
