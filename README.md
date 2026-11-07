@@ -10,7 +10,6 @@
   <a href="docs/INSTALLATION.md"><img src="https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg" alt="Platform: Linux | Windows | macOS"></a>
   <a href="docs/TESTING.md"><img src="https://img.shields.io/badge/Tests-272%20Passing-brightgreen.svg" alt="Tests: 272 Passing"></a>
   <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/Process%20Safety-Zero%20Orphans-success.svg" alt="Process Safety: Zero Orphans"></a>
-  <a href="docs/USER_GUIDE.md"><img src="https://img.shields.io/badge/UI-Black%20Gradient%20%7C%202K%20QHD-teal.svg" alt="UI Theme: Black Gradient"></a>
 </p>
 
 **CoreSync** is a desktop-based multicore processing and parallelism engineering workstation designed to explore, execute, simulate, and analyze modern CPU multiprocessing and operating systems concepts.
