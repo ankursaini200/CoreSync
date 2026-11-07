@@ -129,12 +129,10 @@ class PerformancePage(QWidget):
             "Empirical multi-run benchmarking, statistical variance rollups, and theoretical Amdahl scalability models. "
             "Rigorously segregates directly measured hardware metrics from mathematically derived and simulated indicators."
         )
-        desc.setStyleSheet("color: #8b949e; line-height: 1.4;")
+        desc.setStyleSheet("color: #9AA5B4; line-height: 1.4;")
         col.addWidget(desc)
         h_layout.addLayout(col)
         h_layout.addStretch(1)
-        badge = StatusBadge("Engine Active", "success")
-        h_layout.addWidget(badge, alignment=Qt.AlignRight | Qt.AlignVCenter)
         layout.addWidget(header)
 
         # Top Metric Cards

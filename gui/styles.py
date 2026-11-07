@@ -27,7 +27,7 @@ QMainWindow {{
 QWidget {{
     background-color: transparent;
     color: {COLOR_TEXT_PRIMARY};
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Ubuntu', 'Roboto', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Ubuntu', 'Roboto', sans-serif;
     font-size: 13px;
 }}
 
@@ -39,14 +39,14 @@ QScrollArea {{
 
 QScrollBar:vertical {{
     background: transparent;
-    width: 8px;
+    width: 6px;
     margin: 0px;
 }}
 
 QScrollBar::handle:vertical {{
     background: {COLOR_BORDER};
     min-height: 24px;
-    border-radius: 4px;
+    border-radius: 3px;
 }}
 
 QScrollBar::handle:vertical:hover {{
@@ -57,22 +57,42 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
     height: 0px;
 }}
 
+QScrollBar:horizontal {{
+    background: transparent;
+    height: 6px;
+    margin: 0px;
+}}
+
+QScrollBar::handle:horizontal {{
+    background: {COLOR_BORDER};
+    min-width: 24px;
+    border-radius: 3px;
+}}
+
+QScrollBar::handle:horizontal:hover {{
+    background: {COLOR_BORDER_LIGHT};
+}}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+    width: 0px;
+}}
+
 /* Top Application Header Bar */
 #topHeaderBar {{
     background-color: {COLOR_BG_SIDEBAR};
     border-bottom: 1px solid {COLOR_BORDER};
-    min-height: 52px;
-    max-height: 52px;
+    min-height: 50px;
+    max-height: 50px;
 }}
 
 #pageTitle {{
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
     color: {COLOR_TEXT_PRIMARY};
 }}
 
 #pageBreadcrumb {{
-    font-size: 12px;
+    font-size: 11px;
     color: {COLOR_TEXT_MUTED};
 }}
 
@@ -85,9 +105,9 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
 }}
 
 #appBrand {{
-    font-size: 19px;
+    font-size: 18px;
     font-weight: 800;
-    color: {COLOR_ACCENT};
+    color: {COLOR_TEXT_PRIMARY};
     letter-spacing: 0.5px;
     padding: 16px 14px 2px 14px;
 }}
@@ -110,10 +130,10 @@ QLabel.nav-category {{
 
 QPushButton.nav-button {{
     background-color: transparent;
-    color: {COLOR_TEXT_PRIMARY};
+    color: {COLOR_TEXT_MUTED};
     border: none;
-    border-radius: 6px;
-    padding: 9px 12px;
+    border-radius: 5px;
+    padding: 8px 12px;
     text-align: left;
     font-weight: 500;
     margin: 1px 6px;
@@ -121,12 +141,12 @@ QPushButton.nav-button {{
 
 QPushButton.nav-button:hover {{
     background-color: {COLOR_BG_HOVER};
-    color: {COLOR_ACCENT_HOVER};
+    color: {COLOR_TEXT_PRIMARY};
 }}
 
 QPushButton.nav-button:checked {{
-    background-color: #1a2233;
-    color: {COLOR_ACCENT};
+    background-color: {COLOR_BG_CARD_ALT};
+    color: {COLOR_TEXT_PRIMARY};
     font-weight: 600;
     border-left: 3px solid {COLOR_ACCENT};
 }}
@@ -135,8 +155,8 @@ QPushButton.nav-button:checked {{
 QFrame.card {{
     background-color: {COLOR_BG_CARD};
     border: 1px solid {COLOR_BORDER};
-    border-radius: 10px;
-    padding: 16px;
+    border-radius: 8px;
+    padding: 14px 16px;
 }}
 
 QFrame.card:hover {{
@@ -146,58 +166,64 @@ QFrame.card:hover {{
 QFrame.card-alt {{
     background-color: {COLOR_BG_CARD_ALT};
     border: 1px solid {COLOR_BORDER};
-    border-radius: 10px;
-    padding: 16px;
+    border-radius: 8px;
+    padding: 14px 16px;
 }}
 
 /* Typography Hierarchy */
 QLabel.heading-1 {{
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 700;
     color: {COLOR_TEXT_PRIMARY};
 }}
 
 QLabel.heading-2 {{
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     color: {COLOR_TEXT_PRIMARY};
 }}
 
 QLabel.heading-3 {{
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     color: {COLOR_TEXT_PRIMARY};
 }}
 
 QLabel.muted {{
     color: {COLOR_TEXT_MUTED};
-    font-size: 12px;
+    font-size: 11px;
 }}
 
 QLabel.metric-value {{
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 700;
     color: {COLOR_TEXT_PRIMARY};
 }}
 
+QLabel.metric-label {{
+    color: {COLOR_TEXT_MUTED};
+    font-size: 12px;
+    font-weight: 500;
+}}
+
 QLabel.tag-pill {{
     background-color: {COLOR_BG_CARD_ALT};
-    color: {COLOR_ACCENT};
+    color: {COLOR_TEXT_MUTED};
     border: 1px solid {COLOR_BORDER};
     border-radius: 4px;
     padding: 2px 8px;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
 }}
 
 /* Form Controls & Inputs */
 QComboBox {{
     background-color: {COLOR_BG_CARD_ALT};
     border: 1px solid {COLOR_BORDER};
-    border-radius: 6px;
-    padding: 6px 10px;
+    border-radius: 5px;
+    padding: 5px 10px;
     color: {COLOR_TEXT_PRIMARY};
-    min-width: 140px;
+    min-width: 130px;
 }}
 
 QComboBox:hover {{
@@ -212,15 +238,15 @@ QComboBox QAbstractItemView {{
     outline: none;
 }}
 
-QSpinBox, QLineEdit {{
+QSpinBox, QDoubleSpinBox, QLineEdit {{
     background-color: {COLOR_BG_CARD_ALT};
     border: 1px solid {COLOR_BORDER};
-    border-radius: 6px;
-    padding: 6px 10px;
+    border-radius: 5px;
+    padding: 5px 8px;
     color: {COLOR_TEXT_PRIMARY};
 }}
 
-QSpinBox:focus, QLineEdit:focus {{
+QSpinBox:focus, QDoubleSpinBox:focus, QLineEdit:focus {{
     border: 1px solid {COLOR_ACCENT};
 }}
 
@@ -229,9 +255,10 @@ QPushButton.btn-primary {{
     background-color: {COLOR_ACCENT};
     color: #ffffff;
     border: none;
-    border-radius: 6px;
-    padding: 8px 16px;
+    border-radius: 5px;
+    padding: 7px 14px;
     font-weight: 600;
+    font-size: 12px;
 }}
 
 QPushButton.btn-primary:hover {{
@@ -239,16 +266,17 @@ QPushButton.btn-primary:hover {{
 }}
 
 QPushButton.btn-primary:pressed {{
-    background-color: #1f6feb;
+    background-color: #3B7BB5;
 }}
 
 QPushButton.btn-secondary {{
     background-color: {COLOR_BG_CARD_ALT};
     color: {COLOR_TEXT_PRIMARY};
     border: 1px solid {COLOR_BORDER};
-    border-radius: 6px;
-    padding: 8px 16px;
+    border-radius: 5px;
+    padding: 7px 14px;
     font-weight: 500;
+    font-size: 12px;
 }}
 
 QPushButton.btn-secondary:hover {{
@@ -260,26 +288,52 @@ QPushButton.btn-danger {{
     background-color: {COLOR_DANGER};
     color: #ffffff;
     border: none;
-    border-radius: 6px;
-    padding: 8px 16px;
+    border-radius: 5px;
+    padding: 7px 14px;
     font-weight: 600;
+    font-size: 12px;
+}}
+
+QPushButton.btn-danger:hover {{
+    background-color: #D97373;
+}}
+
+/* Tables */
+QTableWidget {{
+    background-color: {COLOR_BG_CARD};
+    border: 1px solid {COLOR_BORDER};
+    border-radius: 6px;
+    gridline-color: {COLOR_BORDER};
+    color: {COLOR_TEXT_PRIMARY};
+    selection-background-color: {COLOR_BG_HOVER};
+    selection-color: {COLOR_TEXT_PRIMARY};
+}}
+
+QHeaderView::section {{
+    background-color: {COLOR_BG_CARD_ALT};
+    color: {COLOR_TEXT_MUTED};
+    border: none;
+    border-bottom: 1px solid {COLOR_BORDER};
+    padding: 6px 8px;
+    font-weight: 600;
+    font-size: 11px;
 }}
 
 /* Progress Bars */
 QProgressBar {{
     background-color: {COLOR_BG_CARD_ALT};
     border: 1px solid {COLOR_BORDER};
-    border-radius: 4px;
+    border-radius: 3px;
     text-align: center;
     color: {COLOR_TEXT_PRIMARY};
     font-size: 11px;
-    font-weight: 600;
-    max-height: 12px;
+    font-weight: 500;
+    max-height: 10px;
 }}
 
 QProgressBar::chunk {{
     background-color: {COLOR_ACCENT};
-    border-radius: 3px;
+    border-radius: 2px;
 }}
 
 /* Status Bar */

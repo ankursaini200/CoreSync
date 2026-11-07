@@ -151,14 +151,15 @@ class VirtualMonitorPage(QWidget):
             "Visual observation grid for individual virtual cores, simulated cycle throughput, "
             "and dynamic task assignments."
         )
-        desc.setStyleSheet("color: #8b949e;")
+        desc.setStyleSheet("color: #9AA5B4;")
         left_col.addWidget(desc)
         layout.addLayout(left_col)
         layout.addStretch(1)
 
         status_col = QVBoxLayout()
         status_col.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.badge_status = StatusBadge("Virtual Core Matrix", "info")
+        self.badge_status = QLabel("Virtual Core Matrix")
+        self.badge_status.setStyleSheet("color: #9AA5B4; font-size: 11px;")
         status_col.addWidget(self.badge_status, alignment=Qt.AlignRight)
         layout.addLayout(status_col)
 

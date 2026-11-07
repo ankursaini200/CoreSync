@@ -83,15 +83,10 @@ class RealProcessPage(QWidget):
             "Track active child workers across Data Parallelism, Task Parallelism, and Real CPU Stress. "
             "Inspect assigned CPU affinity masks, monitor resource usage, and reap orphaned processes."
         )
-        desc.setStyleSheet("color: #8b949e;")
+        desc.setStyleSheet("color: #9AA5B4;")
         left_col.addWidget(desc)
         layout.addLayout(left_col)
         layout.addStretch(1)
-
-        status_col = QVBoxLayout()
-        status_col.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        status_col.addWidget(StatusBadge("Unified Process Manager", "success"), alignment=Qt.AlignRight)
-        layout.addLayout(status_col)
 
         return card
 
@@ -103,8 +98,6 @@ class RealProcessPage(QWidget):
             title="CoreSync Active Workers",
             value="0 Workers",
             subtitle="Spawned processes across engines",
-            status_text="Idle",
-            status_theme="neutral",
         )
         layout.addWidget(self.card_workers)
 
@@ -112,8 +105,6 @@ class RealProcessPage(QWidget):
             title="CPU Affinity Policy",
             value="Automatic",
             subtitle=f"{len(get_available_system_cpus())} Logical Cores Available",
-            status_text="Hardware Ready",
-            status_theme="info",
         )
         layout.addWidget(self.card_affinity)
 
@@ -121,8 +112,6 @@ class RealProcessPage(QWidget):
             title="Top OS CPU Consumer",
             value="--",
             subtitle="Process with highest CPU consumption",
-            status_text="Sampling",
-            status_theme="neutral",
         )
         layout.addWidget(self.card_top_proc)
 
@@ -130,8 +119,6 @@ class RealProcessPage(QWidget):
             title="Orphan Detection",
             value="0 Detected",
             subtitle="Dangling worker processes",
-            status_text="Clean",
-            status_theme="success",
         )
         layout.addWidget(self.card_orphans)
 

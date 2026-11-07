@@ -80,9 +80,6 @@ class DashboardPage(QWidget):
         text_col = QVBoxLayout()
         text_col.setSpacing(6)
 
-        tag = StatusBadge(self.summary.detection_status, "info")
-        text_col.addWidget(tag, alignment=Qt.AlignLeft)
-
         title = QLabel(f"{APP_NAME} Workstation - {self.summary.cpu_model}")
         title.setProperty("class", "heading-1")
         text_col.addWidget(title)
@@ -92,19 +89,24 @@ class DashboardPage(QWidget):
             f"Hardware: {self.summary.physical_cores} Physical Cores, {self.summary.logical_cores} Logical Execution Threads. "
             f"Active process affinity: {len(self.summary.current_affinity)} cores."
         )
-        desc.setStyleSheet("color: #8b949e; line-height: 1.4;")
+        desc.setStyleSheet("color: #9AA5B4; line-height: 1.4;")
         text_col.addWidget(desc)
 
         layout.addLayout(text_col)
         layout.addStretch(1)
 
-        # Status badge block
+        # Status block: clean subtle technical metadata text instead of oversized decorative pills
         status_col = QVBoxLayout()
         status_col.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        status_col.setSpacing(8)
+        status_col.setSpacing(4)
 
-        status_col.addWidget(StatusBadge("OS Scheduler: Linux CFS", "neutral"), alignment=Qt.AlignRight)
-        status_col.addWidget(StatusBadge("Engine Context: spawn", "success"), alignment=Qt.AlignRight)
+        lbl_sched = QLabel("Operating System Scheduler: Linux CFS")
+        lbl_sched.setStyleSheet("color: #9AA5B4; font-size: 11px;")
+        status_col.addWidget(lbl_sched, alignment=Qt.AlignRight)
+
+        lbl_mp = QLabel("Multiprocessing: Spawn Context")
+        lbl_mp.setStyleSheet("color: #9AA5B4; font-size: 11px;")
+        status_col.addWidget(lbl_mp, alignment=Qt.AlignRight)
         layout.addLayout(status_col)
 
         return banner
@@ -118,8 +120,6 @@ class DashboardPage(QWidget):
             title="Overall CPU Load",
             value="0.0 %",
             subtitle="Aggregated CPU utilization across all cores",
-            status_text="Live Sampler",
-            status_theme="success",
             show_progress=True,
             progress_val=0,
         )
@@ -130,8 +130,6 @@ class DashboardPage(QWidget):
             title="System Memory",
             value="Sampling...",
             subtitle="Host physical RAM allocation",
-            status_text="psutil",
-            status_theme="info",
             show_progress=True,
             progress_val=0,
         )
@@ -142,8 +140,6 @@ class DashboardPage(QWidget):
             title="Physical Cores",
             value=f"{self.summary.physical_cores} Cores",
             subtitle=f"{self.summary.cpu_vendor} hardware units",
-            status_text="Verified",
-            status_theme="success",
         )
         grid.addWidget(self.card_physical, 0, 2)
 
@@ -152,8 +148,6 @@ class DashboardPage(QWidget):
             title="Logical CPUs",
             value=f"{self.summary.logical_cores} Threads",
             subtitle="SMT / Hyperthreading addressable",
-            status_text="Optimal",
-            status_theme="success",
         )
         grid.addWidget(self.card_logical, 0, 3)
 
@@ -167,8 +161,6 @@ class DashboardPage(QWidget):
             title="Real Core Monitor",
             description="Inspect physical vs logical CPU core topologies, SMT threads, and live per-core utilization.",
             button_text="Inspect Real Cores →",
-            badge_text="Real Hardware",
-            badge_theme="success",
             on_click=lambda: self.navigate_requested.emit(1),
         )
         grid.addWidget(card_core, 0, 0)
@@ -177,8 +169,6 @@ class DashboardPage(QWidget):
             title="Real Process Monitor",
             description="Observe top CPU/memory consuming operating system processes and active CoreSync workers.",
             button_text="View Processes →",
-            badge_text="Real Hardware",
-            badge_theme="success",
             on_click=lambda: self.navigate_requested.emit(2),
         )
         grid.addWidget(card_proc, 0, 1)
@@ -187,8 +177,6 @@ class DashboardPage(QWidget):
             title="Real CPU Stress Tool",
             description="Safely generate multicore CPU load with duty-cycle throttling and automatic timeout caps.",
             button_text="Launch Stress Lab →",
-            badge_text="Safety Guarded",
-            badge_theme="danger",
             on_click=lambda: self.navigate_requested.emit(3),
         )
         grid.addWidget(card_stress, 0, 2)
@@ -197,8 +185,6 @@ class DashboardPage(QWidget):
             title="Virtual CPU Architect",
             description="Design custom simulated processors with 1-128 cores and asymmetric P/E hybrid ratios.",
             button_text="Configure CPU →",
-            badge_text="Virtual Lab",
-            badge_theme="info",
             on_click=lambda: self.navigate_requested.emit(4),
         )
         grid.addWidget(card_vconfig, 1, 0)
@@ -207,8 +193,6 @@ class DashboardPage(QWidget):
             title="Virtual Core Monitor",
             description="Visualize simulated multicore execution matrices and individual virtual core utilization.",
             button_text="View Matrix →",
-            badge_text="Virtual Lab",
-            badge_theme="info",
             on_click=lambda: self.navigate_requested.emit(5),
         )
         grid.addWidget(card_vmonitor, 1, 1)
@@ -217,8 +201,6 @@ class DashboardPage(QWidget):
             title="Virtual Scheduling Lab",
             description="Experiment with FCFS, Priority, and Round Robin scheduling algorithms on virtual cores.",
             button_text="Launch Scheduler →",
-            badge_text="Virtual Lab",
-            badge_theme="info",
             on_click=lambda: self.navigate_requested.emit(6),
         )
         grid.addWidget(card_vscheduler, 1, 2)

@@ -85,14 +85,14 @@ class VirtualSchedulerPage(QWidget):
             "Observe FCFS, Priority, and Round Robin scheduling algorithms dispatching synthetic "
             "workloads across your configured virtual multicore processor."
         )
-        desc.setStyleSheet("color: #8b949e;")
+        desc.setStyleSheet("color: #9AA5B4;")
         left_col.addWidget(desc)
         layout.addLayout(left_col)
         layout.addStretch(1)
 
         status_col = QVBoxLayout()
         status_col.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.header_badge = StatusBadge("Virtual Lab (Scheduler)", "info")
+        self.header_badge = StatusBadge("Simulation Ready", "neutral")
         status_col.addWidget(self.header_badge, alignment=Qt.AlignRight)
         layout.addLayout(status_col)
 

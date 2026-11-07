@@ -82,14 +82,14 @@ class VirtualConfigPage(QWidget):
             "Configure software-simulated multicore CPUs with arbitrary core topologies, "
             "asymmetric P-core/E-core performance ratios, and custom clock multipliers."
         )
-        desc.setStyleSheet("color: #8b949e;")
+        desc.setStyleSheet("color: #9AA5B4;")
         left_col.addWidget(desc)
         layout.addLayout(left_col)
         layout.addStretch(1)
 
         status_col = QVBoxLayout()
         status_col.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.header_badge = StatusBadge("Virtual Lab (Configurable)", "info")
+        self.header_badge = StatusBadge("Simulation Ready", "neutral")
         status_col.addWidget(self.header_badge, alignment=Qt.AlignRight)
         layout.addLayout(status_col)
 

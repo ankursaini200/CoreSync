@@ -136,14 +136,16 @@ class SettingsPage(QWidget):
             "Configure process lifecycle timeouts, hardware inspection mechanisms, "
             "logging thresholds, and workstation UI preferences."
         )
-        desc.setStyleSheet("color: #8b949e;")
+        desc.setStyleSheet("color: #9AA5B4;")
         left_col.addWidget(desc)
         layout.addLayout(left_col)
         layout.addStretch(1)
 
         status_col = QVBoxLayout()
         status_col.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        status_col.addWidget(StatusBadge("Config Active", "success"), alignment=Qt.AlignRight)
+        lbl_status = QLabel("Active Settings")
+        lbl_status.setStyleSheet("color: #9AA5B4; font-size: 11px;")
+        status_col.addWidget(lbl_status, alignment=Qt.AlignRight)
         layout.addLayout(status_col)
 
         return card

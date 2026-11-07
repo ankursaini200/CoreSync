@@ -219,8 +219,6 @@ class CoreMonitorPage(QWidget):
             title="Physical Cores",
             value=f"{self.summary.physical_cores} Cores",
             subtitle=f"{self.summary.cpu_vendor} hardware units on silicon",
-            status_text="Verified",
-            status_theme="success",
         )
         grid.addWidget(self.card_phys, 0, 0)
 
@@ -228,8 +226,6 @@ class CoreMonitorPage(QWidget):
             title="Logical CPUs",
             value=f"{self.summary.logical_cores} Threads",
             subtitle=f"{self.summary.available_cpus} available to current process",
-            status_text="Optimal",
-            status_theme="success",
         )
         grid.addWidget(self.card_log, 0, 1)
 
@@ -238,8 +234,6 @@ class CoreMonitorPage(QWidget):
             title="Core Architecture",
             value="Hybrid P/E" if self.summary.topology.is_hybrid else "Standard",
             subtitle=hybrid_desc,
-            status_text="Verified PMU" if self.summary.topology.is_hybrid else "Standard",
-            status_theme="info" if self.summary.topology.is_hybrid else "neutral",
         )
         grid.addWidget(self.card_hybrid, 0, 2)
 
@@ -248,8 +242,6 @@ class CoreMonitorPage(QWidget):
             title="Clock Ceiling",
             value=max_f_str,
             subtitle="Scaling governor max limit",
-            status_text="cpufreq",
-            status_theme="neutral",
         )
         grid.addWidget(self.card_freq, 0, 3)
 
@@ -326,7 +318,8 @@ class CoreMonitorPage(QWidget):
         header_row.addWidget(title)
         header_row.addStretch(1)
 
-        self.live_badge = StatusBadge("Live Monitoring (QThread)", "success")
+        self.live_badge = QLabel("Sampling: 1000 ms")
+        self.live_badge.setStyleSheet("color: #9AA5B4; font-size: 11px;")
         header_row.addWidget(self.live_badge)
         layout.addLayout(header_row)
 

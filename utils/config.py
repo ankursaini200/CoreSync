@@ -29,21 +29,21 @@ COOPERATIVE_TIMEOUT = 2.0   # Wait for cancel_event
 SIGTERM_TIMEOUT = 1.5       # Wait after process.terminate()
 SIGKILL_TIMEOUT = 0.5       # Wait after process.kill()
 
-# UI Theme Constants
-COLOR_BG_DARK = "#0d1117"
-COLOR_BG_SIDEBAR = "#131822"
-COLOR_BG_CARD = "#161b24"
-COLOR_BG_CARD_ALT = "#1c2330"
-COLOR_BG_HOVER = "#212836"
-COLOR_BORDER = "#283344"
-COLOR_BORDER_LIGHT = "#3b475c"
-COLOR_ACCENT = "#58a6ff"
-COLOR_ACCENT_HOVER = "#79c0ff"
-COLOR_TEXT_PRIMARY = "#e6edf3"
-COLOR_TEXT_MUTED = "#8b949e"
-COLOR_SUCCESS = "#3fb950"
-COLOR_WARNING = "#d29922"
-COLOR_DANGER = "#f85149"
-COLOR_P_CORE = "#388bfd"   # Performance Core Blue
-COLOR_E_CORE = "#a371f7"   # Efficient Core Purple
+# UI Theme Constants - Professional Minimal Dark Theme
+COLOR_BG_DARK = "#10141B"        # Main background
+COLOR_BG_SIDEBAR = "#151B24"     # Sidebar
+COLOR_BG_CARD = "#1A202B"        # Card background
+COLOR_BG_CARD_ALT = "#202836"    # Secondary background / card-alt
+COLOR_BG_HOVER = "#263040"       # Interactive hover state
+COLOR_BORDER = "#303A49"         # Subtle borders
+COLOR_BORDER_LIGHT = "#3E4C60"   # Active / hover borders
+COLOR_ACCENT = "#4B91D1"         # Primary accent (restrained slate blue)
+COLOR_ACCENT_HOVER = "#5EA3E3"   # Hover accent
+COLOR_TEXT_PRIMARY = "#E5EAF1"   # Primary text
+COLOR_TEXT_MUTED = "#9AA5B4"     # Secondary text
+COLOR_SUCCESS = "#399B70"        # Restrained forest/sage success
+COLOR_WARNING = "#C69A46"        # Restrained amber warning
+COLOR_DANGER = "#CF6262"         # Subdued crimson error
+COLOR_P_CORE = "#4B91D1"         # Performance Core Blue
+COLOR_E_CORE = "#8E7CC3"         # Efficient Core Muted Purple
 

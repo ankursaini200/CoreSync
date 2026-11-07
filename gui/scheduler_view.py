@@ -225,9 +225,6 @@ class SchedulerViewPage(QWidget):
         preset_box.setSpacing(6)
         preset_box.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
-        badge = StatusBadge("Educational Simulator Active", "success")
-        preset_box.addWidget(badge, alignment=Qt.AlignRight)
-
         preset_row = QHBoxLayout()
         self.combo_presets = QComboBox()
         self.combo_presets.setMinimumWidth(220)

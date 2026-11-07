@@ -114,7 +114,7 @@ class DataParallelismPage(QWidget):
 
         status_col = QVBoxLayout()
         status_col.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.badge_hardware = StatusBadge("Real Hardware Execution (Host CPU)", "success")
+        self.badge_hardware = StatusBadge("Engine: Ready", "success")
         status_col.addWidget(self.badge_hardware, alignment=Qt.AlignRight)
         layout.addLayout(status_col)
 
@@ -253,8 +253,6 @@ class DataParallelismPage(QWidget):
             title="Parallel Speedup (S)",
             value="-- x",
             subtitle="T_seq / T_par",
-            status_text="Pending",
-            status_theme="neutral",
         )
         layout.addWidget(self.card_speedup)
 
@@ -262,8 +260,6 @@ class DataParallelismPage(QWidget):
             title="Parallel Efficiency (E)",
             value="-- %",
             subtitle="(Speedup / Workers) * 100%",
-            status_text="Pending",
-            status_theme="neutral",
         )
         layout.addWidget(self.card_efficiency)
 
@@ -271,8 +267,6 @@ class DataParallelismPage(QWidget):
             title="Sequential Time",
             value="-- ms",
             subtitle="Single-core baseline execution",
-            status_text="Pending",
-            status_theme="neutral",
         )
         layout.addWidget(self.card_seq_time)
 
@@ -280,8 +274,6 @@ class DataParallelismPage(QWidget):
             title="Parallel Time",
             value="-- ms",
             subtitle="Spawn + Compute + Merge wall-clock",
-            status_text="Pending",
-            status_theme="neutral",
         )
         layout.addWidget(self.card_par_time)
 
@@ -289,8 +281,6 @@ class DataParallelismPage(QWidget):
             title="Processing Throughput",
             value="-- items/s",
             subtitle="Elements evaluated per second",
-            status_text="Pending",
-            status_theme="neutral",
         )
         layout.addWidget(self.card_throughput)
 
@@ -476,23 +466,15 @@ class DataParallelismPage(QWidget):
 
         # Speedup & Efficiency cards
         self.card_speedup.set_value(f"{result.speedup:.2f} x")
-        self.card_speedup.set_status("Speedup Achieved" if result.speedup >= 1.0 else "Overhead Bound", "success" if result.speedup >= 1.0 else "warning")
-
         self.card_efficiency.set_value(f"{result.efficiency_pct:.1f} %")
-        self.card_efficiency.set_status("Optimal" if result.efficiency_pct > 60 else "Sub-linear", "info")
-
         self.card_seq_time.set_value(f"{result.sequential_time_s * 1000:.1f} ms")
-        self.card_seq_time.set_status("Baseline", "neutral")
-
         self.card_par_time.set_value(f"{result.parallel_time_s * 1000:.1f} ms")
-        self.card_par_time.set_status(f"{result.worker_count} Workers", "success")
 
         if result.throughput_items_per_s >= 1_000_000:
             tp_str = f"{result.throughput_items_per_s / 1_000_000:.2f} M/s"
         else:
             tp_str = f"{result.throughput_items_per_s / 1_000:.1f} K/s"
         self.card_throughput.set_value(tp_str)
-        self.card_throughput.set_status("Peak", "info")
 
         # Verification
         v = result.verification
