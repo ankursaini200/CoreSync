@@ -2,6 +2,13 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+
+# Packages and distributions
+build/
+dist/
+*.egg-info/
+.eggs/
 
 # Virtual environments
 .venv/
@@ -13,12 +20,16 @@ env/
 .coverage
 htmlcov/
 
-# Logs and user cache
+# Local cache and temporary runtime directories
 logs/
 .mplconfig/
+.coresync/
+scratch/*.tmp
 
 # OS / Editor artifacts
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
-
+*.swp
+*.swo

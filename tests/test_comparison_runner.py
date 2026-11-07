@@ -79,8 +79,11 @@ def test_comparison_runner_real_only():
     assert len(session_res.real_result.worker_intervals) > 0
 
 
-def test_comparison_runner_compare_both_and_history():
+def test_comparison_runner_compare_both_and_history(tmp_path):
     """Verify COMPARE_BOTH runs real first, then virtual, analyzes results, and persists to history."""
+    from engine.analytics.history import BenchmarkHistoryManager
+    hist_mgr = BenchmarkHistoryManager(storage_dir=tmp_path)
+
     workload = ComparisonWorkloadConfig(
         workload_type=ComparisonWorkloadType.TASK_PARALLEL,
         workload_id="diamond",
@@ -100,7 +103,7 @@ def test_comparison_runner_compare_both_and_history():
         virtual_config=virt_cfg,
     )
 
-    runner = ComparisonRunner()
+    runner = ComparisonRunner(history_manager=hist_mgr)
     session_res = runner.run_comparison(config, save_history=True)
 
     assert session_res.success is True
@@ -112,11 +115,11 @@ def test_comparison_runner_compare_both_and_history():
     assert session_res.analysis.real_worker_count == 2
     assert session_res.analysis.virtual_core_count == 2
 
-    # Verify history retrieval
-    comparisons = list_comparisons()
+    # Verify history retrieval from test storage
+    comparisons = list_comparisons(storage_dir=tmp_path)
     assert any(c["comparison_id"] == "history-test-session-001" for c in comparisons)
 
-    loaded = load_comparison("history-test-session-001")
+    loaded = load_comparison("history-test-session-001", storage_dir=tmp_path)
     assert loaded is not None
     assert loaded["comparison_id"] == "history-test-session-001"
     assert loaded["real_result"]["wall_clock_time_s"] > 0

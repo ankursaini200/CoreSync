@@ -1,6 +1,6 @@
 {
   "comparison_id": "history-test-session-001",
-  "timestamp": "2026-11-07T06:50:27.496880+00:00",
+  "timestamp": "2026-11-07T07:25:23.766110+00:00",
   "session_type": "real_vs_virtual_comparison",
   "configuration": {
     "comparison_id": "history-test-session-001",
@@ -33,65 +33,65 @@
   },
   "real_result": {
     "status": "completed",
-    "wall_clock_time_s": 0.188852,
+    "wall_clock_time_s": 0.199079,
     "worker_count": 2,
     "worker_intervals": [
       [
-        4057.370026,
-        4057.385562
+        6153.617221,
+        6153.633476
       ],
       [
-        4057.388782,
-        4057.393674
+        6153.63636,
+        6153.645247
       ],
       [
-        4057.388755,
-        4057.400118
+        6153.636319,
+        6153.648256
       ],
       [
-        4057.401342,
-        4057.411303
+        6153.649878,
+        6153.663412
       ]
     ],
-    "aggregate_worker_compute_time_s": 0.041751,
-    "compute_interval_union_s": 0.03686,
-    "no_worker_compute_time_s": 0.151993,
-    "sequential_baseline_s": 0.042103,
-    "actual_speedup": 0.2229,
-    "worker_utilization_pct": 11.05,
-    "peak_memory_rss_mb": 7.81,
-    "host_cpu_percent": 9.9,
+    "aggregate_worker_compute_time_s": 0.050612,
+    "compute_interval_union_s": 0.041725,
+    "no_worker_compute_time_s": 0.157354,
+    "sequential_baseline_s": 0.058183,
+    "actual_speedup": 0.2923,
+    "worker_utilization_pct": 12.71,
+    "peak_memory_rss_mb": 7.93,
+    "host_cpu_percent": 14.9,
     "task_completions": [
       {
         "task_id": "t1_init",
         "worker_id": 0,
         "process_id": 42,
-        "duration_s": 0.015535,
-        "finish_timestamp": 4057.385562,
-        "status": "COMPLETED"
-      },
-      {
-        "task_id": "t2_matrix",
-        "worker_id": 1,
-        "process_id": 42,
-        "duration_s": 0.004892,
-        "finish_timestamp": 4057.393674,
+        "duration_s": 0.016255,
+        "finish_timestamp": 6153.633476,
         "status": "COMPLETED"
       },
       {
         "task_id": "t3_primes",
+        "worker_id": 1,
+        "process_id": 42,
+        "duration_s": 0.008887,
+        "finish_timestamp": 6153.645247,
+        "status": "COMPLETED"
+      },
+      {
+        "task_id": "t2_matrix",
         "worker_id": 0,
         "process_id": 43,
-        "duration_s": 0.011364,
-        "finish_timestamp": 4057.400118,
+        "duration_s": 0.011937,
+        "finish_timestamp": 6153.648256,
         "status": "COMPLETED"
       },
       {
         "task_id": "t4_reduce",
         "worker_id": 0,
         "process_id": 42,
-        "duration_s": 0.009961,
-        "finish_timestamp": 4057.411303,
+        "duration_s": 0.013534,
+        "finish_timestamp": 6153.663412,
         "status": "COMPLETED"
       }
     ],
@@ -217,13 +217,13 @@
     "workload_equivalence": true,
     "workload_equivalence_details": "Workloads matched: Both executed 4 logical DAG tasks for 'Diamond DAG'.",
     "task_count_match": true,
-    "completion_order_concordance": 0.8333,
+    "completion_order_concordance": 1.0,
     "real_worker_count": 2,
     "virtual_core_count": 2,
     "resource_allocation_ratio": 1.0,
-    "real_utilization_pct": 11.05,
+    "real_utilization_pct": 12.71,
     "virtual_utilization_pct": 45.24,
-    "utilization_difference_pct": -34.19,
+    "utilization_difference_pct": -32.53,
     "scheduling_policy_effects": [
       "Virtual Lab Policy: Round Robin",
       "Virtual Symmetric Topology: Homogeneous Standard Virtual Cores (1.0x)"
@@ -232,7 +232,7 @@
       "CLOCK DOMAIN BOUNDARY: Real System wall-clock elapsed time (measured in seconds via high-resolution monotonic timer) and Virtual Lab simulation time (measured in discrete logical ticks) belong to distinct clock domains. They are never divided.",
       "REAL SYSTEM: Reflects physical OS process management, memory paging, inter-process communication serialization, and host kernel scheduling delays.",
       "VIRTUAL LAB: Reflects idealized software-simulated processor cores, discrete tick advancing, and educational scheduling algorithms.",
-      "UTILIZATION COMPARISON: Real worker utilization was 11.1% (cumulative compute W*s / capacity), while Virtual core utilization was 45.2% (busy ticks / capacity ticks)."
+      "UTILIZATION COMPARISON: Real worker utilization was 12.7% (cumulative compute W*s / capacity), while Virtual core utilization was 45.2% (busy ticks / capacity ticks)."
     ],
     "provenance": "mathematically_derived"
   },
@@ -244,7 +244,7 @@
     "architecture": "x86_64",
     "operating_system": "Arch Linux (Linux 7.2.14-arch1-1)",
     "total_ram_gb": 15.32,
-    "available_ram_gb": 5.49,
+    "available_ram_gb": 6.12,
     "is_hybrid": true,
     "p_core_count": 12,
     "e_core_count": 8

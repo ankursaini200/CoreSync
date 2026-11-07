@@ -8,7 +8,7 @@ from pathlib import Path
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 os.environ["QT_QPA_PLATFORMTHEME"] = ""
 
-PROJECT_ROOT = Path("/home/ankur/Code Playground/OS project/CoreSync")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -22,7 +22,7 @@ from engine.analytics.benchmarking import (
 )
 from engine.analytics.history import BenchmarkHistoryManager
 
-SCREENSHOTS_DIR = Path("/home/ankur/.gemini/antigravity/brain/36c47103-bffc-4579-9fdf-6bd23ce66107/screenshots")
+SCREENSHOTS_DIR = PROJECT_ROOT / "docs" / "screenshots"
 SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 

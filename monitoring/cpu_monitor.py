@@ -64,7 +64,7 @@ class CPUMonitorWorker(QObject):
                 return
             self._is_running = True
 
-            self._timer = QTimer()
+            self._timer = QTimer(self)
             self._timer.setInterval(self._interval_ms)
             self._timer.timeout.connect(self._sample_metrics)
             self._timer.start()
@@ -84,11 +84,16 @@ class CPUMonitorWorker(QObject):
             if self._timer is not None:
                 if self._timer.isActive():
                     self._timer.stop()
-                self._timer.deleteLater()
+                self._timer.setParent(None)
                 self._timer = None
             logger.debug("CPU monitoring timer stopped")
         finally:
             self._mutex.unlock()
+
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is not None:
+            self.moveToThread(app.thread())
 
         self.sampling_stopped.emit()
 
@@ -150,15 +155,20 @@ class CPUMonitorWorker(QObject):
             top_procs: List[ProcessInfo] = []
             my_pid = os.getpid()
             try:
-                for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent", "memory_info", "cmdline"]):
+                for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent", "memory_info"]):
                     try:
                         p_info = p.info
                         pid = p_info.get("pid") or 0
                         p_name = p_info.get("name") or "Unknown"
-                        cmdline = " ".join(p_info.get("cmdline") or [])
-                        is_worker = (pid in worker_pids) or (("CoreSync" in cmdline or "coresync" in cmdline) and pid != my_pid)
-                        if is_worker and pid not in worker_pids and pid != my_pid:
-                            worker_pids.append(pid)
+                        is_worker = (pid in worker_pids)
+                        if not is_worker and pid != my_pid and "python" in p_name.lower():
+                            try:
+                                cmdline = " ".join(p.cmdline())
+                                if "coresync" in cmdline.lower():
+                                    is_worker = True
+                                    worker_pids.append(pid)
+                            except Exception:
+                                pass
 
                         c_pct = p_info.get("cpu_percent") or 0.0
                         m_pct = p_info.get("memory_percent") or 0.0

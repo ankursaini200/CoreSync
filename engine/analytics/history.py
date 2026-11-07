@@ -72,6 +72,9 @@ class BenchmarkHistoryManager:
                 except (OSError, PermissionError):
                     pass
 
+        self._summary_cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+        self._comparison_cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+
     def save_session(self, session: BenchmarkSessionResult) -> Path:
         """Serialize a BenchmarkSessionResult to a structured JSON file.
 
@@ -108,6 +111,12 @@ class BenchmarkHistoryManager:
         sessions = []
         for p in self.storage_dir.glob("*.json"):
             try:
+                mtime = p.stat().st_mtime
+                cache_key = str(p)
+                if cache_key in self._summary_cache and self._summary_cache[cache_key][0] == mtime:
+                    sessions.append(self._summary_cache[cache_key][1])
+                    continue
+
                 with open(p, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
@@ -124,7 +133,7 @@ class BenchmarkHistoryManager:
                 verified = data.get("verification_passed", data.get("success", False))
                 workers = data.get("worker_count", data.get("configuration", {}).get("real_config", {}).get("worker_count", 1))
 
-                sessions.append({
+                item = {
                     "benchmark_id": b_id,
                     "engine_type": "comparison" if is_comp else data.get("engine_type"),
                     "engine_name": engine_name,
@@ -135,7 +144,9 @@ class BenchmarkHistoryManager:
                     "mean_efficiency_pct": mean_eff,
                     "verification_passed": verified,
                     "file_path": str(p),
-                })
+                }
+                self._summary_cache[cache_key] = (mtime, item)
+                sessions.append(item)
             except Exception as e:
                 logger.warning("Skipping corrupted benchmark file %s: %s", p, e)
 
@@ -154,6 +165,14 @@ class BenchmarkHistoryManager:
         comparisons = []
         for p in self.storage_dir.glob("*.json"):
             try:
+                mtime = p.stat().st_mtime
+                cache_key = str(p)
+                if cache_key in self._comparison_cache and self._comparison_cache[cache_key][0] == mtime:
+                    c_item = self._comparison_cache[cache_key][1]
+                    if c_item is not None:
+                        comparisons.append(c_item)
+                    continue
+
                 with open(p, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 if data.get("session_type") == "real_vs_virtual_comparison" or "comparison_id" in data:
@@ -163,14 +182,18 @@ class BenchmarkHistoryManager:
                     mode = cfg.get("execution_mode", "compare_both")
                     ts = data.get("timestamp", "")
                     success = data.get("success", True)
-                    comparisons.append({
+                    item = {
                         "comparison_id": c_id,
                         "workload_name": w_name,
                         "execution_mode": mode,
                         "timestamp": ts,
                         "success": success,
                         "file_path": str(p),
-                    })
+                    }
+                    self._comparison_cache[cache_key] = (mtime, item)
+                    comparisons.append(item)
+                else:
+                    self._comparison_cache[cache_key] = (mtime, None)
             except Exception:
                 continue
         comparisons.sort(key=lambda s: s.get("timestamp", ""), reverse=True)
@@ -204,6 +227,8 @@ class BenchmarkHistoryManager:
         if file_path.exists():
             try:
                 file_path.unlink()
+                self._summary_cache.pop(str(file_path), None)
+                self._comparison_cache.pop(str(file_path), None)
                 logger.info("Deleted benchmark session: %s", benchmark_id)
                 return True
             except Exception as e:
@@ -213,6 +238,8 @@ class BenchmarkHistoryManager:
 
     def clear_all(self) -> int:
         """Delete all benchmark record files in the storage directory."""
+        self._summary_cache.clear()
+        self._comparison_cache.clear()
         if not self.storage_dir.exists():
             return 0
         deleted_count = 0

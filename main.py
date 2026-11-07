@@ -70,8 +70,8 @@ def main() -> int:
 
     # 7. Automated startup verification mode (for tests and headless CI)
     if args.test_startup:
-        logger.info("Test startup mode active: scheduling shutdown in 1000ms...")
-        QTimer.singleShot(1000, app.quit)
+        logger.info("Test startup mode active: scheduling graceful shutdown in 1000ms...")
+        QTimer.singleShot(1000, window.close)
 
     return app.exec()
 
