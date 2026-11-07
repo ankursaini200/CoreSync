@@ -14,9 +14,11 @@ import sys
 import os
 import platform
 import multiprocessing as mp
+import tempfile
+from pathlib import Path
 
 # Configure safe writable directory for Matplotlib cache
-os.environ.setdefault("MPLCONFIGDIR", "/tmp/coresync_mpl")
+os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "coresync_mpl"))
 
 def check_python_version() -> bool:
     print(f"[*] Python Version: {platform.python_version()} ({platform.python_implementation()})")
@@ -139,6 +141,7 @@ def check_pytest() -> bool:
         return False
 
 def main() -> int:
+    mp.freeze_support()
     print("=" * 60)
     print("CoreSync Dependency Compatibility Verification")
     print("=" * 60)

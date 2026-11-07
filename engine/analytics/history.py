@@ -9,6 +9,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import tempfile
 from typing import Any, Dict, List, Optional
 
 from engine.analytics.benchmarking import BenchmarkSessionResult
@@ -53,10 +54,11 @@ class BenchmarkHistoryManager:
             except (OSError, PermissionError):
                 pass
         else:
+            fallback_temp = Path(tempfile.gettempdir()) / "coresync_benchmarks"
             candidates = [
                 DEFAULT_BENCHMARK_DIR,
                 Path(os.getcwd()) / ".coresync_benchmarks",
-                Path("/tmp/coresync_benchmarks"),
+                fallback_temp,
             ]
             for cand in candidates:
                 try:
@@ -66,7 +68,7 @@ class BenchmarkHistoryManager:
                 except (OSError, PermissionError):
                     continue
             else:
-                self.storage_dir = Path("/tmp/coresync_benchmarks")
+                self.storage_dir = fallback_temp
                 try:
                     self.storage_dir.mkdir(parents=True, exist_ok=True)
                 except (OSError, PermissionError):

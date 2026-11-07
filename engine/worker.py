@@ -26,8 +26,12 @@ def worker_init(worker_id: int, affinity: Optional[list[int]] = None) -> None:
     enable_parent_death_protection(os.getppid())
     if affinity:
         try:
-            os.sched_setaffinity(0, affinity)
-        except (AttributeError, OSError):
+            if hasattr(os, "sched_setaffinity"):
+                os.sched_setaffinity(0, affinity)
+            else:
+                import psutil
+                psutil.Process(os.getpid()).cpu_affinity(affinity)
+        except Exception:
             pass
 
 

@@ -29,23 +29,25 @@ def parse_args():
 
 
 def main() -> int:
-    # 1. Enforce multiprocessing spawn context
+    # 1. Enforce freeze_support for Windows packaged executables & multiprocessing spawn
+    mp.freeze_support()
     mp.set_start_method("spawn", force=True)
 
     # 2. Handle Linux Wayland/X11 environment gracefully before Qt initializes
-    wayland_socket_valid = False
-    if "WAYLAND_DISPLAY" in os.environ:
-        xdg_runtime = os.environ.get("XDG_RUNTIME_DIR", "")
-        if xdg_runtime and (Path(xdg_runtime) / os.environ["WAYLAND_DISPLAY"]).exists():
-            wayland_socket_valid = True
+    if sys.platform.startswith("linux"):
+        wayland_socket_valid = False
+        if "WAYLAND_DISPLAY" in os.environ:
+            xdg_runtime = os.environ.get("XDG_RUNTIME_DIR", "")
+            if xdg_runtime and (Path(xdg_runtime) / os.environ["WAYLAND_DISPLAY"]).exists():
+                wayland_socket_valid = True
 
-    display_valid = bool(os.environ.get("DISPLAY"))
+        display_valid = bool(os.environ.get("DISPLAY"))
 
-    if not wayland_socket_valid and not display_valid:
-        os.environ["QT_QPA_PLATFORM"] = "offscreen"
-        os.environ["QT_QPA_PLATFORMTHEME"] = ""
-        os.environ.pop("WAYLAND_DISPLAY", None)
-        os.environ.pop("DISPLAY", None)
+        if not wayland_socket_valid and not display_valid:
+            os.environ["QT_QPA_PLATFORM"] = "offscreen"
+            os.environ["QT_QPA_PLATFORMTHEME"] = ""
+            os.environ.pop("WAYLAND_DISPLAY", None)
+            os.environ.pop("DISPLAY", None)
 
     # 3. Import Qt only after environment variables are configured
     from PySide6.QtCore import QTimer

@@ -2,11 +2,13 @@
 
 import os
 import sys
+import tempfile
+from pathlib import Path
 
 # Crucial: Override display plugins before any Qt imports occur in tests
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 os.environ["QT_QPA_PLATFORMTHEME"] = ""
-os.environ["MPLCONFIGDIR"] = "/tmp/coresync_test_mpl"
+os.environ["MPLCONFIGDIR"] = str(Path(tempfile.gettempdir()) / "coresync_test_mpl")
 
 from pathlib import Path
 import pytest

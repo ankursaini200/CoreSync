@@ -11,6 +11,22 @@ The workstation interface features:
 - **Top Header Bar**: Displays current section breadcrumb, active hardware summary, and live status.
 - **Main Viewport**: High-density workstation panels with real-time responsive updates.
 
+### Launching on Windows (Windows 10 / 11)
+- Double-click `run_windows.bat` in the project root, or execute:
+  ```cmd
+  run_windows.bat
+  ```
+- Or via PowerShell:
+  ```powershell
+  .\run_windows.ps1
+  ```
+- CoreSync automatically binds to the native Windows desktop platform plugin, applies high-DPI font scaling, and sets up worker parent-death handle watchers.
+
+### Launching on Linux / macOS
+```bash
+coresync       # Or: python main.py
+```
+
 ---
 
 ## 1. Dashboard (Index 0)

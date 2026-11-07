@@ -114,28 +114,41 @@ flowchart TD
 - Python 3.11+
 - Virtual environment tool (`python -m venv`)
 
-### Installation Steps
+### Quickstart: Linux / macOS
 
 ```bash
-# 1. Clone the repository
+# 1. Clone repository & enter workspace
 git clone https://github.com/academicos/coresync.git
 cd coresync
 
-# 2. Create and activate virtual environment
+# 2. Setup virtual environment & install CoreSync
 python3 -m venv .venv
-source .venv/bin/activate       # On Windows: .venv\Scripts\activate.bat
-
-# 3. Install CoreSync and dependencies
+source .venv/bin/activate
 pip install --upgrade pip
 pip install -e .
 
-# 4. Launch CoreSync
-coresync
+# 3. Launch CoreSync
+coresync   # Or: python main.py
 ```
 
-Alternatively, run directly with Python:
-```bash
-python main.py
+### Quickstart: Windows 10 / 11
+
+Using Command Prompt (`cmd.exe`):
+```cmd
+setup_windows.bat
+run_windows.bat
+```
+
+Using PowerShell:
+```powershell
+.\setup_windows.ps1
+.\run_windows.ps1
+```
+
+To run the automated test suite on Windows:
+```cmd
+test_windows.bat
+REM Or via PowerShell: .\test_windows.ps1
 ```
 
 For complete platform-specific instructions, see [docs/INSTALLATION.md](docs/INSTALLATION.md).
@@ -148,8 +161,8 @@ For complete platform-specific instructions, see [docs/INSTALLATION.md](docs/INS
 - **[Installation Guide](docs/INSTALLATION.md)**: Setup guides for Linux, Windows, macOS, and headless CI.
 - **[User Guide](docs/USER_GUIDE.md)**: Operational guide for all 13 workstation pages.
 - **[Developer Guide](docs/DEVELOPMENT.md)**: Module conventions, extending kernels/DAGs/schedulers, and coding standards.
-- **[Testing & Verification](docs/TESTING.md)**: Full test inventory (255 tests), headless test execution, and orphan verification.
-- **[Packaging Guide](packaging/README.md)**: Standalone binary builds via PyInstaller for Linux, Windows, and macOS.
+- **[Testing & Verification](docs/TESTING.md)**: Full test inventory (272 tests across 25 modules), headless test execution, Windows compatibility suite, and orphan verification.
+- **[Packaging Guide](packaging/README.md)**: Standalone binary builds via PyInstaller for Linux, Windows (`packaging/build_windows.bat` & `.ps1`), and macOS.
 - **[Contributing](docs/CONTRIBUTING.md)**: Pull request protocol and code of conduct.
 - **[Third-Party Licenses](THIRD_PARTY_LICENSES.md)**: Licenses and attributions for upstream open-source dependencies.
 
@@ -160,11 +173,11 @@ For complete platform-specific instructions, see [docs/INSTALLATION.md](docs/INS
 | Operating System | Hardware Probing | Multiprocessing | CPU Affinity | Parent-Death Protection | Test Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Linux (x86_64 / arm64)** | `sysfs`, `procfs`, `psutil` | `spawn` context | `sched_setaffinity` | `PR_SET_PDEATHSIG` + watchdog | **VERIFIED NATIVE** (Arch Linux) |
-| **Microsoft Windows (10/11)** | WMI, Registry, `psutil` | `spawn` context | `psutil.cpu_affinity` | `SYNCHRONIZE` handle wait | **VERIFIED VIA MOCKS** |
+| **Microsoft Windows (10/11)** | Win Registry (`CentralProcessor\0`), WMIC, `psutil` | `spawn` context + `freeze_support` | `psutil.cpu_affinity` + `GetCurrentProcessorNumber` | `OpenProcess(SYNCHRONIZE)` handle wait + PPID race guard | **VERIFIED VIA COMPREHENSIVE SUITE** (272 tests) |
 | **Apple macOS (Darwin)** | `sysctl`, `psutil` | `spawn` context | Informative fallback (No hard affinity in XNU) | `kqueue` / 100ms watchdog | **VERIFIED VIA MOCKS** |
 
 > [!NOTE]
-> Testing was physically executed on Linux. Windows and macOS compatibility behaviors are verified through platform-specific automated unit test suites and mocks; native validation on Windows and macOS hardware is documented as unverified pending community runners.
+> Physical test runs in our primary development environment are executed on Arch Linux (`Linux 7.2.14-arch1-1 x86_64`). Windows native subsystems (WinReg hardware detection, Win32 `OpenProcess(SYNCHRONIZE)` handle wait, Win32 processor numbers, `freeze_support` lifecycle, and path safety) are tested via dedicated unit test suites (`tests/test_windows_native_compat.py`). To validate natively on a Windows 10/11 workstation, execute `test_windows.bat` or `.\test_windows.ps1`.
 
 ---
 

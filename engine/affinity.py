@@ -68,6 +68,18 @@ def get_process_actual_cpu(pid: Optional[int] = None) -> Optional[int]:
         except Exception:
             pass
 
+    # Fast path: query current thread/process on Windows via kernel32 GetCurrentProcessorNumber
+    if target_pid == os.getpid() and sys.platform.startswith("win32"):
+        try:
+            import ctypes
+            if hasattr(ctypes, "windll") and hasattr(ctypes.windll, "kernel32"):
+                if hasattr(ctypes.windll.kernel32, "GetCurrentProcessorNumber"):
+                    core_id = ctypes.windll.kernel32.GetCurrentProcessorNumber()
+                    if core_id >= 0:
+                        return int(core_id)
+        except Exception:
+            pass
+
     # Inspection path for any target process via Linux /proc/[pid]/stat
     if sys.platform.startswith("linux"):
         stat_path = f"/proc/{target_pid}/stat"

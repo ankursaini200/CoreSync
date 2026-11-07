@@ -1,6 +1,7 @@
 """Settings Page for CoreSync Workstation."""
 
 import platform
+import sys
 from typing import Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -210,10 +211,22 @@ class SettingsPage(QWidget):
         # Topology Source
         grid.addWidget(QLabel("Topology Detection Method:"), 0, 0)
         self.combo_topo = QComboBox()
-        self.combo_topo.addItems([
-            "Linux sysfs (/sys/devices/system/cpu) - Recommended",
-            "psutil Standard Fallback",
-        ])
+        if sys.platform.startswith("win32"):
+            topo_items = [
+                "Windows Registry / Win32 API - Recommended",
+                "psutil Generic Fallback",
+            ]
+        elif sys.platform.startswith("darwin"):
+            topo_items = [
+                "macOS sysctl / CoreServices - Recommended",
+                "psutil Generic Fallback",
+            ]
+        else:
+            topo_items = [
+                "Linux sysfs (/sys/devices/system/cpu) - Recommended",
+                "psutil Standard Fallback",
+            ]
+        self.combo_topo.addItems(topo_items)
         grid.addWidget(self.combo_topo, 0, 1)
 
         # Start Method

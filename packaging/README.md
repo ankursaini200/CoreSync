@@ -55,8 +55,13 @@ This directory contains standalone packaging recipes for building standalone bin
   ```
 
 ### Build Command
+In Command Prompt:
 ```cmd
 packaging\build_windows.bat
+```
+Or in PowerShell:
+```powershell
+.\packaging\build_windows.ps1
 ```
 
 ### Verification

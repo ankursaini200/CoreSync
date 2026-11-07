@@ -227,10 +227,16 @@ def enable_parent_death_protection(parent_pid: Optional[int] = None) -> ParentDe
 
     # Step 3 & 4: Immediately call os.getppid() and check for startup race
     current_ppid = os.getppid()
+    parent_is_dead = False
     if current_ppid != expected_ppid:
+        parent_is_dead = True
+    elif not psutil.pid_exists(expected_ppid):
+        parent_is_dead = True
+
+    if parent_is_dead:
         logger.critical(
             f"Parent-death startup race detected: expected parent PID {expected_ppid}, "
-            f"but current getppid() is {current_ppid}. Self-terminating immediately."
+            f"but parent is not alive (current getppid()={current_ppid}). Self-terminating immediately."
         )
         os._exit(0)
 

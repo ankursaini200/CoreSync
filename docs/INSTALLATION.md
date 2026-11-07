@@ -73,38 +73,69 @@ python main.py
 
 ---
 
-## 3. Microsoft Windows Installation
+## 3. Microsoft Windows Installation (Windows 10 / 11)
 
-### Step 1: Install Python
+### Option A: Automated One-Click Setup (Recommended)
+
+1. Open **Command Prompt (`cmd.exe`)** or **PowerShell** as your regular user.
+2. Clone the repository and navigate into it:
+   ```cmd
+   git clone https://github.com/academicos/coresync.git
+   cd coresync
+   ```
+3. Run the automated setup script:
+   - In Command Prompt:
+     ```cmd
+     setup_windows.bat
+     ```
+   - In PowerShell:
+     ```powershell
+     .\setup_windows.ps1
+     ```
+   *This script automatically verifies Python 3.11+, provisions the `.venv` virtual environment, installs CoreSync in editable mode with development/packaging tools, and executes `utils\check_deps.py`.*
+
+4. Launch the application:
+   - In Command Prompt:
+     ```cmd
+     run_windows.bat
+     ```
+   - In PowerShell:
+     ```powershell
+     .\run_windows.ps1
+     ```
+
+5. Run the automated test suite:
+   ```cmd
+   test_windows.bat
+   REM Or PowerShell: .\test_windows.ps1
+   ```
+
+### Option B: Manual Setup
+
+#### Step 1: Install Python
 Download and install Python 3.11+ from [python.org](https://www.python.org/downloads/).
 > [!IMPORTANT]
 > Ensure you check the box **"Add python.exe to PATH"** during installation.
 
-### Step 2: Clone the Repository
-Open PowerShell or Command Prompt:
-```cmd
-git clone https://github.com/academicos/coresync.git
-cd coresync
-```
-
-### Step 3: Create and Activate Virtual Environment
+#### Step 2: Create and Activate Virtual Environment
 ```cmd
 python -m venv .venv
 .venv\Scripts\activate.bat
 ```
-*(In PowerShell: `.venv\Scripts\Activate.ps1`)*
+*(In PowerShell: `Set-ExecutionPolicy -Scope Process RemoteSigned` then `.venv\Scripts\Activate.ps1`)*
 
-### Step 4: Install CoreSync
+#### Step 3: Install CoreSync
 ```cmd
-pip install --upgrade pip
-pip install -e .
+python -m pip install --upgrade pip setuptools wheel
+pip install -e .[dev,build]
 ```
 
-### Step 5: Launch the Application
+#### Step 4: Verify Installation
 ```cmd
-coresync
+python utils\check_deps.py
 ```
-Or:
+
+#### Step 5: Launch CoreSync
 ```cmd
 python main.py
 ```

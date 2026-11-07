@@ -113,10 +113,13 @@ sequenceDiagram
     end
 ```
 
-### Triple-Shield Orphan Defense
-1. **Kernel-Level Termination**: On Linux, `prctl(PR_SET_PDEATHSIG, SIGTERM)` instructs the Linux kernel to send `SIGTERM` to the child worker the instant the parent thread dies.
-2. **Startup Race Check**: Between child fork/spawn and `prctl` execution, the parent could theoretically die. The child worker captures `expected_parent_pid` before enabling protection, invokes `prctl`, and immediately checks `os.getppid()`. If reparented to `systemd`/`init` (PID 1), it aborts immediately.
-3. **Child-Side Watchdog Thread**: A dedicated daemon thread in every worker inspects parent liveness every 100ms. If the parent disappears, the child terminates itself without relying on parent-side cleanup.
+### Cross-Platform Orphan Defense Architecture
+
+1. **Linux Kernel Signaling**: `prctl(PR_SET_PDEATHSIG, SIGTERM)` instructs the Linux kernel to send `SIGTERM` to the child worker the instant the parent process terminates.
+2. **Windows Win32 Handle Synchronization**: Because Windows does not support POSIX signals or `PR_SET_PDEATHSIG`, workers open a kernel waitable handle to the parent process using `OpenProcess(SYNCHRONIZE, False, parent_pid)`. A dedicated background daemon thread blocks on `WaitForSingleObject(handle, INFINITE)`. The instant the parent process terminates, the Windows kernel signals the handle and the worker self-terminates (`os._exit(0)`).
+3. **Cross-Platform Startup Race Guard**: Between worker creation and watchdog setup, the parent could die. On Linux, the child checks `os.getppid() != expected_ppid` (detecting reparenting to `systemd`/`init`). On Windows, orphan processes retain their original parent PID rather than being reparented, so the check also validates `psutil.pid_exists(expected_ppid)`. If the parent is dead, the child aborts immediately.
+4. **Multiprocessing Spawn & Freeze Protection**: Windows does not support `fork()`. All workers are launched via `spawn` context. In packaged PyInstaller executables and standalone scripts, `multiprocessing.freeze_support()` is executed at the entry point of `main.py`, preventing recursive application window spawning (fork-bomb prevention).
+5. **Child-Side Watchdog Thread**: As a tertiary defense across all platforms, a daemon thread inspects parent liveness every 100ms. If the parent disappears, the child terminates itself without relying on parent-side cleanup.
 
 ---
 
