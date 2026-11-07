@@ -149,7 +149,7 @@ flowchart LR
 ### High-Resolution Interval Instrumentation
 Rather than calculating residuals by subtracting summed worker durations from makespan, CoreSync calculates the **Exact Mathematical Interval Union**:
 $$T_{\text{union}} = \left| \bigcup_{i=1}^{W} [t_{\text{start}, i}, t_{\text{finish}, i}] \right|$$
-$$T_{\text{no\_worker\_compute}} = T_{\text{makespan}} - T_{\text{union}}$$
+$$T_{\text{no-worker-compute}} = T_{\text{makespan}} - T_{\text{union}}$$
 This guarantees that worker overlap during concurrent execution does not distort elapsed non-compute overhead measurements.
 
 ---
@@ -200,7 +200,7 @@ The CPU Scheduling engine (`engine/process_scheduler/`) models uniprocessor CPU 
 
 ### Aging Algorithm Integrity
 Effective priority is updated strictly as a function of time spent in the `READY` queue:
-$$\text{effective\_prio} = \text{initial\_prio} \pm \left\lfloor \frac{t_{\text{waiting}}}{\text{aging\_interval}} \right\rfloor \times \text{aging\_step}$$
+$$P_{\text{effective}} = P_{\text{initial}} \pm \left\lfloor \frac{t_{\text{waiting}}}{\tau_{\text{aging}}} \right\rfloor \times \Delta P_{\text{step}}$$
 Running time on the CPU does not contribute to aging; preempted processes resume accumulating waiting time from their exact preemption tick.
 
 ---

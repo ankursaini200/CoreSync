@@ -104,8 +104,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Separated Speedup, Parallelism Ratio, and Worker Utilization**:
   - Replaced ambiguous speedup metric with three mathematically rigorous metrics:
     1. **Actual Speedup**: $S = T_{\text{seq}} / T_{\text{par}}$ comparing single-threaded sequential baseline execution with parallel makespan.
-    2. **Parallelism Ratio**: $P = \sum T_{\text{worker\_compute}} / T_{\text{par}}$ measuring concurrency density (average active worker count).
-    3. **Worker Utilization**: $U = \frac{\sum T_{\text{worker\_compute}}}{\text{Worker Count} \times T_{\text{par}}} \times 100\%$ strictly bounded between 0.0% and 100.0%.
+    2. **Parallelism Ratio**: $P = \sum T_{\text{worker-compute}} / T_{\text{par}}$ measuring concurrency density (average active worker count).
+    3. **Worker Utilization**: $U = \frac{\sum T_{\text{worker-compute}}}{\text{Worker Count} \times T_{\text{par}}} \times 100\%$ strictly bounded between 0.0% and 100.0%.
 - **Sequential Baseline Execution (`engine/task_parallel/executor.py`)**:
   - Implemented `run_sequential()` executing an identical replica of the DAG (`graph.clone()`) on 1 worker in strict topological order with identical inputs.
   - Implemented `run_benchmark()` coordinating sequential baseline execution, parallel DAG dispatch, and mathematical output comparison via `TaskVerifier.compare_results()`.

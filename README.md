@@ -386,7 +386,7 @@ $$T_{\text{union}} = \sum_{[a_k, b_k] \in \mathcal{I}_{\text{union}}} (b_k - a_k
 
 ### No-Worker-Compute Time
 Represents the exact elapsed duration where zero instrumented worker processes were actively computing:
-$$T_{\text{no\_worker\_compute}} = T_{\text{par}} - T_{\text{union}}$$
+$$T_{\text{no-worker-compute}} = T_{\text{par}} - T_{\text{union}}$$
 This metric captures process dispatch latency, inter-process communication (IPC) transit, queue wait time, result aggregation, and collection merging overhead. It is not described as CPU idle time or exclusively IPC overhead.
 
 ### Amdahl's Law
@@ -407,7 +407,7 @@ $$P = \frac{\frac{1}{S} - 1}{\frac{1}{W} - 1} \quad (W > 1)$$
 ### CPU Scheduling Metrics
 - **Turnaround Time ($TAT_i$)**: $TAT_i = T_{\text{completion}, i} - T_{\text{arrival}, i}$
 - **Waiting Time ($WT_i$)**: $WT_i = TAT_i - T_{\text{burst}, i}$
-- **Response Time ($RT_i$)**: $RT_i = T_{\text{first\_cpu}, i} - T_{\text{arrival}, i}$
+- **Response Time ($RT_i$)**: $RT_i = T_{\text{first-cpu}, i} - T_{\text{arrival}, i}$
 - **Dynamic Priority Aging Formula**:
   $$P_{\text{effective}}(t) = P_{\text{base}} \pm \left\lfloor \frac{t_{\text{wait}}}{\tau_{\text{aging}}} \right\rfloor$$
 
