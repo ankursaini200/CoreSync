@@ -75,10 +75,10 @@ class DataPipelineVisualizerWidget(QWidget):
         h = self.height()
 
         stages = [
-            ("1. Input Dataset", f"{self.dataset_size:,} Items", COLOR_ACCENT),
-            ("2. Partitioning", f"{self.chunks_count} Chunks", COLOR_ACCENT_SECONDARY),
-            ("3. Worker Pool", f"{self.worker_count} Workers", COLOR_TASK),
-            ("4. Verification", "100% Match" if self.verified and self.stage == 3 else "Pending", COLOR_SUCCESS),
+            ("1. Input Dataset", f"{self.dataset_size:,} Items", "#19C99A"),
+            ("2. Partitioning", f"{self.chunks_count} Chunks", "#A879F5"),
+            ("3. Worker Pool", f"{self.worker_count} Workers", "#42D6A0"),
+            ("4. Verification", "100% Match" if self.verified and self.stage == 3 else "Pending", "#42D6A0"),
         ]
 
         n_stages = len(stages)
@@ -95,7 +95,7 @@ class DataPipelineVisualizerWidget(QWidget):
 
             is_active = (i <= self.stage)
             accent_col = QColor(col_hex) if is_active else QColor(COLOR_BORDER)
-            bg_col = QColor(COLOR_BG_CARD_ALT) if is_active else QColor("#101726")
+            bg_col = QColor(COLOR_BG_CARD_ALT) if is_active else QColor("#111113")
 
             # Stage Box
             painter.setPen(QPen(accent_col, 1.5 if is_active else 1.0))

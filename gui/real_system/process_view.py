@@ -123,7 +123,7 @@ class RealProcessPage(QWidget):
             "Track active child workers across Data Parallelism, Task Parallelism, and Real CPU Stress. "
             "Inspect assigned CPU affinity masks, monitor resource usage, and reap orphaned processes."
         )
-        desc.setStyleSheet("color: #9AA5B4;")
+        desc.setStyleSheet("color: #AAA4AE;")
         left_col.addWidget(desc)
         layout.addLayout(left_col)
         layout.addStretch(1)
@@ -179,14 +179,14 @@ class RealProcessPage(QWidget):
         title_box.addWidget(title)
 
         subtitle = QLabel("Dedicated tracking of child processes spawned by CoreSync execution engines")
-        subtitle.setStyleSheet("color: #8b949e; font-size: 11px;")
+        subtitle.setStyleSheet("color: #AAA4AE; font-size: 11px;")
         title_box.addWidget(subtitle)
         header_row.addLayout(title_box)
         header_row.addStretch(1)
 
         # Policy selector
         lbl_pol = QLabel("Default Affinity:")
-        lbl_pol.setStyleSheet("color: #8b949e; font-size: 11px;")
+        lbl_pol.setStyleSheet("color: #AAA4AE; font-size: 11px;")
         header_row.addWidget(lbl_pol)
 
         self.combo_policy = QComboBox()
@@ -208,7 +208,7 @@ class RealProcessPage(QWidget):
 
         self.btn_kill_all = QPushButton("Cancel All Workers")
         self.btn_kill_all.setProperty("class", "danger")
-        self.btn_kill_all.setStyleSheet("background-color: #f85149; color: white; font-weight: 600; padding: 4px 10px; border-radius: 4px;")
+        self.btn_kill_all.setStyleSheet("background-color: #EF737D; color: #08090B; font-weight: 600; padding: 4px 10px; border-radius: 4px; border: none;")
         self.btn_kill_all.clicked.connect(self._on_cancel_all_clicked)
         header_row.addWidget(self.btn_kill_all)
 
@@ -234,18 +234,9 @@ class RealProcessPage(QWidget):
         self.table_workers.setAlternatingRowColors(True)
         self.table_workers.verticalHeader().setVisible(False)
         self.table_workers.setStyleSheet("""
-            QTableWidget {
-                background-color: #161b24;
-                border: 1px solid #283344;
-                border-radius: 6px;
-                gridline-color: #283344;
-            }
             QHeaderView::section {
-                background-color: #1c2330;
-                color: #58a6ff;
+                color: #19C99A;
                 font-weight: 600;
-                padding: 6px;
-                border: 1px solid #283344;
             }
         """)
         layout.addWidget(self.table_workers)
@@ -264,7 +255,7 @@ class RealProcessPage(QWidget):
         layout.addWidget(title)
 
         subtitle = QLabel("Live operating system process telemetry (strictly isolated from CoreSync control)")
-        subtitle.setStyleSheet("color: #8b949e; font-size: 11px;")
+        subtitle.setStyleSheet("color: #AAA4AE; font-size: 11px;")
         layout.addWidget(subtitle)
 
         self.table = QTableWidget(self)
@@ -281,21 +272,7 @@ class RealProcessPage(QWidget):
         self.table.setMinimumHeight(260)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
-        self.table.setStyleSheet("""
-            QTableWidget {
-                background-color: #161b24;
-                border: 1px solid #283344;
-                border-radius: 6px;
-                gridline-color: #283344;
-            }
-            QHeaderView::section {
-                background-color: #1c2330;
-                color: #e6edf3;
-                font-weight: 600;
-                padding: 6px;
-                border: 1px solid #283344;
-            }
-        """)
+        layout.addWidget(self.table)
         layout.addWidget(self.table)
         return card
 
@@ -386,7 +363,7 @@ class RealProcessPage(QWidget):
             # Cancel / Terminate Action button
             if w.pid:
                 btn_cancel = QPushButton("Terminate")
-                btn_cancel.setStyleSheet("background-color: #3b2024; color: #f85149; border: 1px solid #f85149; border-radius: 3px; font-size: 10px; font-weight: 600;")
+                btn_cancel.setStyleSheet("background-color: #241113; color: #EF737D; border: 1px solid #EF737D; border-radius: 3px; font-size: 10px; font-weight: 600;")
                 btn_cancel.clicked.connect(lambda _, target_pid=w.pid: self._terminate_single_worker(target_pid))
                 self.table_workers.setCellWidget(row, 9, btn_cancel)
 

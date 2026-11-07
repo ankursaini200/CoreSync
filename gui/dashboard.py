@@ -29,16 +29,20 @@ from utils.config import (
     COLOR_BG_CARD,
     COLOR_BG_CARD_ALT,
     COLOR_BORDER,
+    COLOR_EMERALD,
     COLOR_MEMORY,
     COLOR_PERFORMANCE,
     COLOR_SUCCESS,
     COLOR_TASK,
+    COLOR_TEAL,
     COLOR_TEXT_MUTED,
     COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
+    COLOR_VIOLET,
 )
 from utils.system_info import SystemSummary, get_system_summary
 from monitoring.cpu_monitor import CPUMetricsSnapshot
-from gui.components.action_card import ActionCard
+from gui.components.action_card import ActionCard, ActionCardIconWidget
 from gui.components.arc_gauge import ArcGaugeWidget
 from gui.components.metric_card import MetricCard
 from gui.components.sparkline_chart import RealtimeAreaChartWidget
@@ -82,9 +86,9 @@ class DashboardPage(QWidget):
             max_points=60,
             title="REAL-TIME SYSTEM ACTIVITY TIMELINE (60-SECOND ROLLING WINDOW)",
             series1_name="CPU Utilization",
-            series1_color=COLOR_ACCENT,
+            series1_color=COLOR_TEAL,
             series2_name="RAM Usage",
-            series2_color=COLOR_MEMORY,
+            series2_color=COLOR_VIOLET,
             parent=container,
         )
         layout.addWidget(self.telemetry_chart)
@@ -110,7 +114,14 @@ class DashboardPage(QWidget):
         banner = QFrame()
         banner.setProperty("class", "card")
         layout = QHBoxLayout(banner)
-        layout.setContentsMargins(24, 18, 24, 18)
+        layout.setContentsMargins(20, 16, 24, 16)
+        layout.setSpacing(16)
+
+        # Left violet vertical accent indicator bar
+        accent_bar = QFrame(banner)
+        accent_bar.setFixedSize(3, 40)
+        accent_bar.setStyleSheet("background-color: #A879F5; border-radius: 1.5px;")
+        layout.addWidget(accent_bar)
 
         text_col = QVBoxLayout()
         text_col.setSpacing(4)
@@ -120,10 +131,10 @@ class DashboardPage(QWidget):
         text_col.addWidget(title)
 
         desc = QLabel(
-            f"Host Architecture: {self.summary.cpu_model} ({self.summary.physical_cores}P / {self.summary.logical_cores}L Cores). "
-            f"OS: {self.summary.os_name} {self.summary.os_kernel} ({self.summary.architecture})."
+            f"Host Architecture: {self.summary.cpu_model} ({self.summary.physical_cores}P / {self.summary.logical_cores}L Cores)\n"
+            f"OS: {self.summary.os_name} {self.summary.os_kernel} ({self.summary.architecture})"
         )
-        desc.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 12px;")
+        desc.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 11.5px; line-height: 1.4;")
         text_col.addWidget(desc)
 
         layout.addLayout(text_col)
@@ -131,14 +142,14 @@ class DashboardPage(QWidget):
 
         status_col = QVBoxLayout()
         status_col.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        status_col.setSpacing(3)
+        status_col.setSpacing(4)
 
         lbl_sched = QLabel("Scheduler: Linux CFS / SMP")
-        lbl_sched.setStyleSheet(f"color: {COLOR_ACCENT}; font-size: 11px; font-weight: 600;")
+        lbl_sched.setStyleSheet("color: #A879F5; font-size: 11px; font-weight: 600;")
         status_col.addWidget(lbl_sched, alignment=Qt.AlignRight)
 
         lbl_mp = QLabel("Context: Multiprocessing (spawn)")
-        lbl_mp.setStyleSheet(f"color: {COLOR_PERFORMANCE}; font-size: 11px; font-weight: 600;")
+        lbl_mp.setStyleSheet("color: #42D6A0; font-size: 11px; font-weight: 600;")
         status_col.addWidget(lbl_mp, alignment=Qt.AlignRight)
         layout.addLayout(status_col)
 
@@ -148,24 +159,32 @@ class DashboardPage(QWidget):
         row = QHBoxLayout()
         row.setSpacing(14)
 
-        # Card 1: CPU Activity & Topology
+        # Card 1: CPU Activity & Topology (Teal ambient card)
         card_cpu = QFrame()
-        card_cpu.setProperty("class", "card")
+        card_cpu.setProperty("class", "card-teal")
         l_cpu = QHBoxLayout(card_cpu)
         l_cpu.setContentsMargins(18, 14, 18, 14)
 
         info_cpu = QVBoxLayout()
-        info_cpu.setSpacing(4)
+        info_cpu.setSpacing(8)
+
+        hdr_cpu = QHBoxLayout()
+        hdr_cpu.setSpacing(10)
+        icon_cpu = ActionCardIconWidget("core_monitor", "#19C99A", card_cpu)
+        hdr_cpu.addWidget(icon_cpu)
+
         t_cpu = QLabel("Processor Activity")
         t_cpu.setProperty("class", "heading-2")
-        info_cpu.addWidget(t_cpu)
+        hdr_cpu.addWidget(t_cpu)
+        hdr_cpu.addStretch(1)
+        info_cpu.addLayout(hdr_cpu)
 
         self.lbl_cpu_detail = QLabel(
             f"{self.summary.physical_cores} Physical Cores\n"
             f"{self.summary.logical_cores} Logical Processors\n"
             f"Affinity: {len(self.summary.current_affinity)} Cores Active"
         )
-        self.lbl_cpu_detail.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 11px; line-height: 1.4;")
+        self.lbl_cpu_detail.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 11px; line-height: 1.4;")
         info_cpu.addWidget(self.lbl_cpu_detail)
         info_cpu.addStretch(1)
         l_cpu.addLayout(info_cpu)
@@ -176,26 +195,34 @@ class DashboardPage(QWidget):
             max_value=100.0,
             unit="%",
             subtitle="AGGREGATE",
-            color_start=COLOR_ACCENT,
-            color_end=COLOR_ACCENT_SECONDARY,
+            color_start="#19C99A",
+            color_end="#42D6A0",
         )
         l_cpu.addWidget(self.cpu_gauge, alignment=Qt.AlignRight | Qt.AlignVCenter)
         row.addWidget(card_cpu, stretch=1)
 
-        # Card 2: Memory & Host Allocation
+        # Card 2: Memory & Host Allocation (Violet ambient card)
         card_ram = QFrame()
-        card_ram.setProperty("class", "card")
+        card_ram.setProperty("class", "card-violet")
         l_ram = QHBoxLayout(card_ram)
         l_ram.setContentsMargins(18, 14, 18, 14)
 
         info_ram = QVBoxLayout()
-        info_ram.setSpacing(4)
+        info_ram.setSpacing(8)
+
+        hdr_ram = QHBoxLayout()
+        hdr_ram.setSpacing(10)
+        icon_ram = ActionCardIconWidget("process_monitor", "#A879F5", card_ram)
+        hdr_ram.addWidget(icon_ram)
+
         t_ram = QLabel("Physical Memory (RAM)")
         t_ram.setProperty("class", "heading-2")
-        info_ram.addWidget(t_ram)
+        hdr_ram.addWidget(t_ram)
+        hdr_ram.addStretch(1)
+        info_ram.addLayout(hdr_ram)
 
         self.lbl_ram_detail = QLabel("Sampling system memory...\nAllocation state: Active\nAvailable: Calculating...")
-        self.lbl_ram_detail.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 11px; line-height: 1.4;")
+        self.lbl_ram_detail.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 11px; line-height: 1.4;")
         info_ram.addWidget(self.lbl_ram_detail)
         info_ram.addStretch(1)
         l_ram.addLayout(info_ram)
@@ -206,30 +233,38 @@ class DashboardPage(QWidget):
             max_value=100.0,
             unit="%",
             subtitle="ALLOCATED",
-            color_start=COLOR_MEMORY,
-            color_end="#C4B5FD",
+            color_start="#7956C8",
+            color_end="#A879F5",
         )
         l_ram.addWidget(self.ram_gauge, alignment=Qt.AlignRight | Qt.AlignVCenter)
         row.addWidget(card_ram, stretch=1)
 
-        # Card 3: Worker & Concurrency Status
+        # Card 3: Worker & Concurrency Status (Charcoal ambient card)
         card_workers = QFrame()
         card_workers.setProperty("class", "card")
         l_w = QHBoxLayout(card_workers)
         l_w.setContentsMargins(18, 14, 18, 14)
 
         info_w = QVBoxLayout()
-        info_w.setSpacing(4)
+        info_w.setSpacing(8)
+
+        hdr_w = QHBoxLayout()
+        hdr_w.setSpacing(10)
+        icon_w = ActionCardIconWidget("virtual_config", "#D17BE8", card_workers)
+        hdr_w.addWidget(icon_w)
+
         t_w = QLabel("Worker Orchestration")
         t_w.setProperty("class", "heading-2")
-        info_w.addWidget(t_w)
+        hdr_w.addWidget(t_w)
+        hdr_w.addStretch(1)
+        info_w.addLayout(hdr_w)
 
         self.lbl_workers_detail = QLabel(
             "Engine: Spawn Worker Pool\n"
             "Isolation: Full Child Process\n"
             "Reaping: Triple-Shield Active"
         )
-        self.lbl_workers_detail.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 11px; line-height: 1.4;")
+        self.lbl_workers_detail.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 11px; line-height: 1.4;")
         info_w.addWidget(self.lbl_workers_detail)
         info_w.addStretch(1)
         l_w.addLayout(info_w)
@@ -240,8 +275,8 @@ class DashboardPage(QWidget):
             max_value=max(32, self.summary.logical_cores or 4),
             unit="",
             subtitle="CHILD PROCESSES",
-            color_start=COLOR_PERFORMANCE,
-            color_end="#75E2AF",
+            color_start="#19C99A",
+            color_end="#42D6A0",
         )
         l_w.addWidget(self.worker_gauge, alignment=Qt.AlignRight | Qt.AlignVCenter)
         row.addWidget(card_workers, stretch=1)
@@ -290,6 +325,8 @@ class DashboardPage(QWidget):
             title="Real Core Monitor",
             description="Inspect physical vs logical CPU core topologies, SMT threads, and live per-core utilization.",
             button_text="Inspect Real Cores →",
+            icon_type="core_monitor",
+            accent_color="#19C99A",
             on_click=lambda: self.navigate_requested.emit(1),
         )
         grid.addWidget(card_core, 0, 0)
@@ -298,6 +335,8 @@ class DashboardPage(QWidget):
             title="Real Process Monitor",
             description="Observe top CPU/memory consuming operating system processes and active CoreSync workers.",
             button_text="View Processes →",
+            icon_type="process_monitor",
+            accent_color="#A879F5",
             on_click=lambda: self.navigate_requested.emit(2),
         )
         grid.addWidget(card_proc, 0, 1)
@@ -306,6 +345,8 @@ class DashboardPage(QWidget):
             title="Real CPU Stress Tool",
             description="Safely generate multicore CPU load with duty-cycle throttling and automatic timeout caps.",
             button_text="Launch Stress Lab →",
+            icon_type="real_stress",
+            accent_color="#E4AD69",
             on_click=lambda: self.navigate_requested.emit(3),
         )
         grid.addWidget(card_stress, 0, 2)
@@ -314,6 +355,8 @@ class DashboardPage(QWidget):
             title="Virtual CPU Architect",
             description="Design custom simulated processors with 1-128 cores and asymmetric P/E hybrid ratios.",
             button_text="Configure CPU →",
+            icon_type="virtual_config",
+            accent_color="#A879F5",
             on_click=lambda: self.navigate_requested.emit(4),
         )
         grid.addWidget(card_vconfig, 1, 0)
@@ -322,6 +365,8 @@ class DashboardPage(QWidget):
             title="Virtual Core Monitor",
             description="Visualize simulated multicore execution matrices and individual virtual core utilization.",
             button_text="View Matrix →",
+            icon_type="virtual_monitor",
+            accent_color="#42D6A0",
             on_click=lambda: self.navigate_requested.emit(5),
         )
         grid.addWidget(card_vmonitor, 1, 1)
@@ -330,6 +375,8 @@ class DashboardPage(QWidget):
             title="Virtual Scheduling Lab",
             description="Experiment with FCFS, Priority, and Round Robin scheduling algorithms on virtual cores.",
             button_text="Launch Scheduler →",
+            icon_type="virtual_scheduler",
+            accent_color="#E4AD69",
             on_click=lambda: self.navigate_requested.emit(6),
         )
         grid.addWidget(card_vscheduler, 1, 2)

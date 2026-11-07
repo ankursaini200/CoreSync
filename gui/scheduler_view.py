@@ -52,21 +52,21 @@ class ComparisonDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Algorithm Comparison Benchmark")
         self.resize(880, 420)
-        self.setStyleSheet("background-color: #0d1117; color: #c9d1d9;")
+        self.setStyleSheet("background-color: #08090B; color: #F2F0F3;")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(14)
 
         header = QLabel("CPU Scheduling Algorithm Comparative Analysis")
-        header.setStyleSheet("font-size: 16px; font-weight: 700; color: #ffffff;")
+        header.setStyleSheet("font-size: 16px; font-weight: 700; color: #F2F0F3;")
         layout.addWidget(header)
 
         notice = QLabel(
             "All algorithms were executed on the identical process dataset with the configured parameters. "
             "Examine differences in average waiting time, response time, and context switches."
         )
-        notice.setStyleSheet("color: #8b949e; font-size: 12px;")
+        notice.setStyleSheet("color: #AAA4AE; font-size: 12px;")
         layout.addWidget(notice)
 
         table = QTableWidget(len(rows), 8, self)
@@ -88,17 +88,17 @@ class ComparisonDialog(QDialog):
         table.setSelectionBehavior(QAbstractItemView.SelectRows)
         table.setStyleSheet("""
             QTableWidget {
-                background-color: #161b24;
-                border: 1px solid #30363d;
+                background-color: #151416;
+                border: 1px solid #302B32;
                 border-radius: 6px;
-                gridline-color: #21262d;
+                gridline-color: #221F24;
             }
             QHeaderView::section {
-                background-color: #1c2330;
-                color: #c9d1d9;
+                background-color: #111113;
+                color: #AAA4AE;
                 font-weight: 600;
                 padding: 6px;
-                border: 1px solid #30363d;
+                border: 1px solid #302B32;
             }
         """)
 
@@ -215,7 +215,7 @@ class SchedulerViewPage(QWidget):
             "Simulate classical CPU scheduling algorithms (FCFS, SJF, SRTF, Priority with Aging, and Round Robin). "
             "Generate deterministic execution timelines, analyze Gantt event blocks, and compare throughput and turnaround metrics."
         )
-        desc.setStyleSheet("color: #8b949e; font-size: 13px;")
+        desc.setStyleSheet("color: #AAA4AE; font-size: 13px;")
         desc.setWordWrap(True)
         left_col.addWidget(desc)
         layout.addLayout(left_col, stretch=1)

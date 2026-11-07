@@ -1,9 +1,9 @@
-"""Custom QPainter Canvas Widgets for Performance Analytics Visualizations.
+"""Analytics Canvas Widgets for Performance Visualization in CoreSync.
 
-Provides dark-themed, high-DPI rendering for:
-- Amdahl's Law Speedup & Efficiency curves with theoretical asymptote and operating point.
-- Multi-run Empirical Scalability (Speedup vs Worker Count) compared to Linear Ideal.
-- Execution Timing Breakdown stacked bar chart (Startup, Dispatch, Compute, Collection, Merge, Overhead).
+Provides high-contrast QPainter canvas implementations for:
+- Amdahl's Law Speedup Curve with interactive operating point, asymptote, and gradient area fills.
+- Empirical Scalability Chart with multi-worker measurements and linear scaling reference.
+- Stacked Execution Lifecycle Timing Breakdown (Startup, Dispatch, Compute, Collection, Overhead).
 """
 
 import math
@@ -13,6 +13,7 @@ from PySide6.QtGui import (
     QBrush,
     QColor,
     QFont,
+    QLinearGradient,
     QPainter,
     QPainterPath,
     QPen,
@@ -22,39 +23,56 @@ from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 from engine.analytics.amdahl import AmdahlCalculator
 
 
-# Rich Data Visualization Palette
+# Black Gradient Data Visualization Palette (No Blue)
 PALETTE = {
-    "bg": QColor("#0B1020"),
-    "card_bg": QColor("#151F30"),
-    "card_alt": QColor("#1C283E"),
-    "border": QColor("#293B54"),
-    "grid": QColor("#293B54"),
-    "text": QColor("#E5EAF1"),
-    "text_muted": QColor("#8FA0B8"),
-    "blue": QColor("#579BFF"),
-    "green": QColor("#42B883"),
-    "amber": QColor("#E6B45C"),
-    "purple": QColor("#9B83F5"),
-    "pink": QColor("#E58A8A"),
-    "red": QColor("#F07178"),
-    "cyan": QColor("#36C9E8"),
+    "bg": QColor("#08090B"),
+    "card_bg": QColor("#151416"),
+    "card_alt": QColor("#1C191D"),
+    "border": QColor("#302B32"),
+    "grid": QColor("#221F24"),
+    "text": QColor("#F2F0F3"),
+    "text_muted": QColor("#77717C"),
+    "teal": QColor("#19C99A"),
+    "emerald": QColor("#42D6A0"),
+    "violet": QColor("#A879F5"),
+    "purple": QColor("#7956C8"),
+    "magenta": QColor("#D17BE8"),
+    "amber": QColor("#E4AD69"),
+    "red": QColor("#EF737D"),
+    "pink": QColor("#D17BE8"),
+    "blue": QColor("#19C99A"),   # Backward compat alias mapped to Teal
+    "green": QColor("#42D6A0"),  # Backward compat alias mapped to Emerald
+    "cyan": QColor("#19C99A"),   # Backward compat alias mapped to Teal
 }
 
 
 class AmdahlCurveWidget(QWidget):
-    """Visualizes Amdahl's Law theoretical speedup curve and operating point."""
+    """Visualizes Amdahl's Law theoretical speedup curve and operating point with gradient fill."""
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setMinimumSize(420, 260)
         self._parallel_fraction: float = 0.85
         self._operating_processors: int = 8
-        self._max_sweep_processors: int = 32
+        self._max_processors: int = 32
 
-    def set_parameters(self, parallel_fraction: float, operating_processors: int, max_processors: int = 32) -> None:
-        self._parallel_fraction = max(0.0, min(1.0, parallel_fraction))
-        self._operating_processors = max(1, operating_processors)
-        self._max_sweep_processors = max(operating_processors, max_processors)
+    def set_parameters(
+        self,
+        p: Optional[float] = None,
+        n_op: Optional[int] = None,
+        n_max: Optional[int] = None,
+        *,
+        parallel_fraction: Optional[float] = None,
+        operating_processors: Optional[int] = None,
+        max_processors: Optional[int] = None,
+    ) -> None:
+        val_p = parallel_fraction if parallel_fraction is not None else (p if p is not None else 0.85)
+        val_nop = operating_processors if operating_processors is not None else (n_op if n_op is not None else 8)
+        val_nmax = max_processors if max_processors is not None else (n_max if n_max is not None else 32)
+
+        self._parallel_fraction = max(0.0, min(1.0, float(val_p)))
+        self._operating_processors = max(1, int(val_nop))
+        self._max_processors = max(2, int(val_nmax))
         self.update()
 
     def paintEvent(self, event) -> None:  # noqa: N802
@@ -64,29 +82,22 @@ class AmdahlCurveWidget(QWidget):
 
         w = self.width()
         h = self.height()
-
-        # Background
         painter.fillRect(0, 0, w, h, PALETTE["card_bg"])
 
-        # Margins
+        p = self._parallel_fraction
+        max_n = self._max_processors
+        cur_pred = AmdahlCalculator.evaluate(p, self._operating_processors)
+        s_max = cur_pred.theoretical_max_speedup
+
         ml, mr, mt, mb = 55, 30, 30, 40
         plot_w = max(50, w - ml - mr)
         plot_h = max(50, h - mt - mb)
 
-        # Theoretical S_max
-        p = self._parallel_fraction
-        s_max = AmdahlCalculator.calculate_max_speedup(p)
-        cur_pred = AmdahlCalculator.predict(p, self._operating_processors)
+        # Upper bound on Y axis
+        finite_smax = s_max if not math.isinf(s_max) else float(max_n)
+        y_max = max(2.0, math.ceil(max(finite_smax * 1.15, 4.0)))
 
-        # Determine y-axis scale
-        # If P=1, linear S=N. For general P, cap axis appropriately
-        max_n = self._max_sweep_processors
-        max_s_on_curve = AmdahlCalculator.calculate_speedup(p, max_n)
-        y_max = max(4.0, math.ceil(min(max_n, max(max_s_on_curve * 1.25, cur_pred.theoretical_speedup * 1.3))))
-        if not math.isinf(s_max) and s_max < max_n:
-            y_max = max(y_max, math.ceil(s_max * 1.15))
-
-        # Grid lines and Y ticks
+        # Draw Grid & Y ticks
         painter.setFont(QFont("Inter", 8))
         y_steps = 4
         for i in range(y_steps + 1):
@@ -99,13 +110,11 @@ class AmdahlCurveWidget(QWidget):
             painter.setPen(PALETTE["text_muted"])
             painter.drawText(QRectF(0, y_pos - 8, ml - 8, 16), Qt.AlignRight | Qt.AlignVCenter, f"{val:.1f}x")
 
-        # X ticks
-        x_steps = min(8, max_n)
-        for i in range(x_steps + 1):
-            if i == 0:
-                continue
-            n_val = int(round((max_n / x_steps) * i))
-            x_pos = ml + ((n_val - 1) / (max_n - 1)) * plot_w if max_n > 1 else ml
+        # X Ticks
+        for n_val in [1, 2, 4, 8, 16, 32, 64, 128]:
+            if n_val > max_n:
+                break
+            x_pos = ml + ((n_val - 1) / (max_n - 1)) * plot_w
 
             painter.setPen(QPen(PALETTE["grid"], 1, Qt.DashLine))
             painter.drawLine(int(x_pos), mt, int(x_pos), mt + plot_h)
@@ -113,7 +122,7 @@ class AmdahlCurveWidget(QWidget):
             painter.setPen(PALETTE["text_muted"])
             painter.drawText(QRectF(x_pos - 15, mt + plot_h + 6, 30, 16), Qt.AlignCenter, str(n_val))
 
-        # Axes borders
+        # Border
         painter.setPen(QPen(PALETTE["border"], 1))
         painter.drawRect(ml, mt, plot_w, plot_h)
 
@@ -131,7 +140,6 @@ class AmdahlCurveWidget(QWidget):
         lin_path.moveTo(ml, mt + plot_h - (1.0 / y_max) * plot_h)
         for n in range(2, max_n + 1):
             if n > y_max:
-                # clamp to border
                 x_c = ml + ((y_max - 1) / (max_n - 1)) * plot_w
                 lin_path.lineTo(x_c, mt)
                 break
@@ -139,7 +147,7 @@ class AmdahlCurveWidget(QWidget):
             y_pos = mt + plot_h - (n / y_max) * plot_h
             lin_path.lineTo(x_pos, y_pos)
 
-        painter.setPen(QPen(QColor("#30363d"), 1.5, Qt.DotLine))
+        painter.setPen(QPen(QColor("#302B32"), 1.5, Qt.DotLine))
         painter.drawPath(lin_path)
 
         # 3. Amdahl Theoretical Speedup Curve
@@ -155,7 +163,26 @@ class AmdahlCurveWidget(QWidget):
             else:
                 curve_path.lineTo(x_pos, y_pos)
 
-        painter.setPen(QPen(PALETTE["blue"], 2.5))
+        # Gradient area fill under curve
+        area_path = QPainterPath(curve_path)
+        area_path.lineTo(ml + plot_w, mt + plot_h)
+        area_path.lineTo(ml, mt + plot_h)
+        area_path.closeSubpath()
+
+        grad = QLinearGradient(0, mt, 0, mt + plot_h)
+        c_top = QColor(PALETTE["teal"])
+        c_top.setAlpha(45)
+        c_bot = QColor(PALETTE["teal"])
+        c_bot.setAlpha(2)
+        grad.setColorAt(0.0, c_top)
+        grad.setColorAt(1.0, c_bot)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(grad))
+        painter.drawPath(area_path)
+
+        # Stroke line
+        painter.setPen(QPen(PALETTE["teal"], 2.5))
+        painter.setBrush(Qt.NoBrush)
         painter.drawPath(curve_path)
 
         # 4. Active Operating Point
@@ -165,12 +192,12 @@ class AmdahlCurveWidget(QWidget):
         pt_y = mt + plot_h - (op_s / y_max) * plot_h
 
         # Drop lines
-        painter.setPen(QPen(PALETTE["blue"], 1, Qt.DashLine))
+        painter.setPen(QPen(PALETTE["teal"], 1, Qt.DashLine))
         painter.drawLine(int(pt_x), int(pt_y), int(pt_x), mt + plot_h)
         painter.drawLine(ml, int(pt_y), int(pt_x), int(pt_y))
 
         # Point circle
-        painter.setBrush(QBrush(PALETTE["blue"]))
+        painter.setBrush(QBrush(PALETTE["teal"]))
         painter.setPen(QPen(PALETTE["bg"], 2))
         painter.drawEllipse(QPointF(pt_x, pt_y), 6, 6)
 
@@ -183,16 +210,15 @@ class AmdahlCurveWidget(QWidget):
         painter.setPen(PALETTE["text"])
         painter.drawText(tag_rect, Qt.AlignVCenter, tag_text)
 
-        # Axis Titles & Legend
+        # Titles and legend
         painter.setFont(QFont("Inter", 8))
         painter.setPen(PALETTE["text_muted"])
-        painter.drawText(QRectF(ml, h - 22, plot_w, 20), Qt.AlignCenter, "Processors / Worker Threads (N)")
+        painter.drawText(QRectF(ml, h - 22, plot_w, 20), Qt.AlignCenter, "Processor Count (N)")
 
-        # Legend top right
-        painter.setPen(PALETTE["blue"])
-        painter.drawText(ml + 10, mt + 16, f"― Amdahl's Law (P = {p*100:.1f}%)")
-        painter.setPen(QColor("#6e7681"))
-        painter.drawText(ml + 180, mt + 16, "··· Linear Ideal (S = N)")
+        painter.setPen(PALETTE["teal"])
+        painter.drawText(ml + 10, mt + 16, f"― S(N) for P={p:.2f}")
+        painter.setPen(QColor("#77717C"))
+        painter.drawText(ml + 160, mt + 16, "··· Linear Scaling (S = N)")
 
 
 class ScalabilityChartWidget(QWidget):
@@ -266,7 +292,7 @@ class ScalabilityChartWidget(QWidget):
         x_end = ml + ((max_n - 1) / (max_n - 1)) * plot_w if max_n > 1 else ml
         y_end = mt + plot_h - (float(max_n) / y_max) * plot_h
         lin_path.lineTo(x_end, y_end)
-        painter.setPen(QPen(QColor("#30363d"), 1.5, Qt.DotLine))
+        painter.setPen(QPen(QColor("#302B32"), 1.5, Qt.DotLine))
         painter.drawPath(lin_path)
 
         # Empirical Speedup Series
@@ -279,7 +305,26 @@ class ScalabilityChartWidget(QWidget):
             else:
                 path.lineTo(x_pos, y_pos)
 
-        painter.setPen(QPen(PALETTE["green"], 2.5))
+        # Subtle gradient area fill under empirical curve
+        area_path = QPainterPath(path)
+        last_x = ml + ((max_n - 1) / (max_n - 1)) * plot_w if max_n > 1 else ml
+        area_path.lineTo(last_x, mt + plot_h)
+        area_path.lineTo(ml, mt + plot_h)
+        area_path.closeSubpath()
+
+        grad = QLinearGradient(0, mt, 0, mt + plot_h)
+        c_top = QColor(PALETTE["teal"])
+        c_top.setAlpha(40)
+        c_bot = QColor(PALETTE["teal"])
+        c_bot.setAlpha(2)
+        grad.setColorAt(0.0, c_top)
+        grad.setColorAt(1.0, c_bot)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(grad))
+        painter.drawPath(area_path)
+
+        painter.setPen(QPen(PALETTE["teal"], 2.5))
+        painter.setBrush(Qt.NoBrush)
         painter.drawPath(path)
 
         # Points
@@ -287,7 +332,7 @@ class ScalabilityChartWidget(QWidget):
             x_pos = ml + ((n_val - 1) / (max_n - 1)) * plot_w if max_n > 1 else ml
             y_pos = mt + plot_h - (s_val / y_max) * plot_h
 
-            painter.setBrush(QBrush(PALETTE["green"]))
+            painter.setBrush(QBrush(PALETTE["teal"]))
             painter.setPen(QPen(PALETTE["bg"], 2))
             painter.drawEllipse(QPointF(x_pos, y_pos), 5, 5)
 
@@ -301,9 +346,9 @@ class ScalabilityChartWidget(QWidget):
         painter.setPen(PALETTE["text_muted"])
         painter.drawText(QRectF(ml, h - 22, plot_w, 20), Qt.AlignCenter, "Active Multiprocessing Workers (W)")
 
-        painter.setPen(PALETTE["green"])
+        painter.setPen(PALETTE["teal"])
         painter.drawText(ml + 10, mt + 16, f"― {self._series_title}")
-        painter.setPen(QColor("#6e7681"))
+        painter.setPen(QColor("#77717C"))
         painter.drawText(ml + 180, mt + 16, "··· Linear Scaling (S = W)")
 
 
@@ -338,13 +383,12 @@ class TimingBreakdownWidget(QWidget):
 
         segments = [
             ("Process Startup", self._timings.get("startup_s", 0.0), PALETTE["purple"]),
-            ("Task Dispatch", self._timings.get("dispatch_s", 0.0), PALETTE["blue"]),
-            ("Parallel Compute", self._timings.get("compute_s", 0.0), PALETTE["green"]),
+            ("Task Dispatch", self._timings.get("dispatch_s", 0.0), PALETTE["violet"]),
+            ("Parallel Compute", self._timings.get("compute_s", 0.0), PALETTE["teal"]),
             ("Result Collection", self._timings.get("collection_s", 0.0), PALETTE["amber"]),
-            ("Result Merge", self._timings.get("merge_s", 0.0), PALETTE["cyan"]),
-            ("No-Worker-Compute Time", self._timings.get("no_worker_compute_time_s", self._timings.get("residual_s", self._timings.get("idle_gap_time_s", self._timings.get("estimated_distribution_overhead_s", 0.0)))), PALETTE["pink"]),
+            ("Result Merge", self._timings.get("merge_s", 0.0), PALETTE["magenta"]),
+            ("No-Worker-Compute Time", self._timings.get("no_worker_compute_time_s", self._timings.get("residual_s", self._timings.get("idle_gap_time_s", self._timings.get("estimated_distribution_overhead_s", 0.0)))), PALETTE["red"]),
         ]
-        # Filter non-zero
         active_segments = [s for s in segments if s[1] > 0]
 
         # Draw Title
@@ -368,7 +412,6 @@ class TimingBreakdownWidget(QWidget):
             if seg_w < 1.0:
                 continue
             painter.fillRect(QRectF(cur_x, bar_y, seg_w, bar_h), color)
-            # Text inside segment if wide enough
             if seg_w > 45:
                 pct = (val / total_time) * 100.0
                 painter.setFont(QFont("Inter", 7, QFont.Bold))
@@ -395,4 +438,3 @@ class TimingBreakdownWidget(QWidget):
             if leg_x > w - 120:
                 leg_x = 20
                 leg_y += 18
-

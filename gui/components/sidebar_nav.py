@@ -64,18 +64,18 @@ class SidebarBrandWidget(QWidget):
 
         # Gradient background
         bg_grad = QLinearGradient(badge_x, badge_y, badge_x + badge_s, badge_y + badge_s)
-        bg_grad.setColorAt(0.0, QColor("#18253A"))
-        bg_grad.setColorAt(1.0, QColor("#0F1726"))
+        bg_grad.setColorAt(0.0, QColor("#1C191D"))
+        bg_grad.setColorAt(1.0, QColor("#111113"))
         p.setBrush(QBrush(bg_grad))
         p.setPen(QPen(QColor(COLOR_BORDER), 1.2))
         p.drawRoundedRect(badge_rect, 9.0, 9.0)
 
         # Subtle top-left highlight border
-        p.setPen(QPen(QColor(54, 201, 232, 60), 1.0))
+        p.setPen(QPen(QColor(25, 201, 154, 60), 1.0))
         p.drawArc(QRectF(badge_x + 1, badge_y + 1, 16, 16), 90 * 16, 90 * 16)
 
         # 2. CPU Connector Pins (3 pins per side)
-        pin_col = QColor(GRADIENT_PRIMARY_END)
+        pin_col = QColor("#19C99A")
         p.setPen(QPen(pin_col, 1.2, Qt.SolidLine, Qt.RoundCap))
         # Top & Bottom pins
         for px in (badge_x + 12.0, badge_x + 19.0, badge_x + 26.0):
@@ -86,18 +86,18 @@ class SidebarBrandWidget(QWidget):
             p.drawLine(QPointF(badge_x - 2.5, py), QPointF(badge_x + 0.5, py))
             p.drawLine(QPointF(badge_x + badge_s - 0.5, py), QPointF(badge_x + badge_s + 2.5, py))
 
-        # 3. Inner Silicon Die with Primary Gradient
+        # 3. Inner Silicon Die with Teal Gradient
         die_margin = 8.5
         die_rect = QRectF(badge_x + die_margin, badge_y + die_margin, badge_s - (die_margin * 2), badge_s - (die_margin * 2))
         die_grad = QLinearGradient(die_rect.topLeft(), die_rect.bottomRight())
-        die_grad.setColorAt(0.0, QColor(GRADIENT_PRIMARY_START))
-        die_grad.setColorAt(1.0, QColor(GRADIENT_PRIMARY_END))
+        die_grad.setColorAt(0.0, QColor("#19C99A"))
+        die_grad.setColorAt(1.0, QColor("#42D6A0"))
         p.setBrush(QBrush(die_grad))
         p.setPen(Qt.NoPen)
         p.drawRoundedRect(die_rect, 4.0, 4.0)
 
         # 4. Multicore 2x2 Grid inside die
-        p.setBrush(QBrush(QColor("#0B1020")))
+        p.setBrush(QBrush(QColor("#08090B")))
         p.setPen(Qt.NoPen)
         cw, ch = 3.5, 3.5
         dx, dy = die_rect.x(), die_rect.y()
@@ -116,8 +116,8 @@ class SidebarBrandWidget(QWidget):
         p.drawText(QPointF(tx, ty), "Core")
         core_w = p.fontMetrics().horizontalAdvance("Core")
 
-        # "Sync" in vibrant Cyan gradient color
-        p.setPen(QColor(GRADIENT_PRIMARY_END))
+        # "Sync" in vibrant Teal
+        p.setPen(QColor("#19C99A"))
         p.drawText(QPointF(tx + core_w, ty), "Sync")
 
         # 6. Subtitle Description
@@ -128,9 +128,9 @@ class SidebarBrandWidget(QWidget):
         # 7. Bottom Hairline Divider with Subtle Fade
         div_y = h - 1.0
         div_grad = QLinearGradient(16.0, div_y, w - 16.0, div_y)
-        div_grad.setColorAt(0.0, QColor(71, 118, 230, 80))
-        div_grad.setColorAt(0.4, QColor(54, 201, 232, 50))
-        div_grad.setColorAt(0.8, QColor(39, 55, 80, 40))
+        div_grad.setColorAt(0.0, QColor(25, 201, 154, 70))
+        div_grad.setColorAt(0.4, QColor(66, 214, 160, 40))
+        div_grad.setColorAt(0.8, QColor(48, 43, 50, 40))
         div_grad.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setPen(QPen(QBrush(div_grad), 1.0))
         p.drawLine(QPointF(16.0, div_y), QPointF(w - 16.0, div_y))
@@ -144,7 +144,7 @@ class SidebarNavButton(QPushButton):
         page_index: int,
         title: str,
         icon_type: str,
-        accent_color: str = "#36C9E8",
+        accent_color: str = "#19C99A",
         parent: Optional[QWidget] = None,
     ):
         super().__init__(title, parent)
@@ -183,29 +183,29 @@ class SidebarNavButton(QPushButton):
 
         # 1. Background State
         if is_active:
-            # Dark Indigo-to-Blue Gradient
+            # Dark Charcoal-to-Violet Ambient Gradient
             bg_grad = QLinearGradient(4.0, 0, w - 4.0, 0)
-            bg_grad.setColorAt(0.0, QColor(35, 55, 88, 210))
-            bg_grad.setColorAt(0.45, QColor(24, 38, 62, 160))
-            bg_grad.setColorAt(1.0, QColor(14, 23, 38, 80))
+            bg_grad.setColorAt(0.0, QColor(38, 28, 52, 210))
+            bg_grad.setColorAt(0.45, QColor(26, 20, 36, 160))
+            bg_grad.setColorAt(1.0, QColor(17, 14, 23, 80))
             p.setBrush(QBrush(bg_grad))
-            p.setPen(QPen(QColor(54, 110, 180, 120), 1.0))
+            p.setPen(QPen(QColor(168, 121, 245, 120), 1.0))
             p.drawRoundedRect(btn_rect, 6.0, 6.0)
 
             # Left Active Accent Pill Bar
             pill_h = h - 12.0
             pill_rect = QRectF(4.0, 6.0, 3.5, pill_h)
             pill_grad = QLinearGradient(4.0, 6.0, 4.0, 6.0 + pill_h)
-            pill_grad.setColorAt(0.0, QColor(GRADIENT_PRIMARY_START))
-            pill_grad.setColorAt(1.0, QColor(GRADIENT_PRIMARY_END))
+            pill_grad.setColorAt(0.0, QColor(self.accent_color))
+            pill_grad.setColorAt(1.0, QColor(self.accent_color).lighter(125))
             p.setBrush(QBrush(pill_grad))
             p.setPen(Qt.NoPen)
             p.drawRoundedRect(pill_rect, 1.75, 1.75)
 
         elif is_hover:
             # Subtle hover brightening
-            p.setBrush(QBrush(QColor("#152033")))
-            p.setPen(QPen(QColor(54, 201, 232, 50), 1.0))
+            p.setBrush(QBrush(QColor("#1C191D")))
+            p.setPen(QPen(QColor(168, 121, 245, 50), 1.0))
             p.drawRoundedRect(btn_rect, 6.0, 6.0)
         else:
             # Normal inactive state
@@ -420,12 +420,12 @@ class WorkstationStatusWidget(QFrame):
         top_row.addWidget(self.status_dot)
 
         self.lbl_status = QLabel("Engine Ready", self)
-        self.lbl_status.setStyleSheet("color: #96A8C2; font-size: 11px; font-weight: 600;")
+        self.lbl_status.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 11px; font-weight: 600;")
         top_row.addWidget(self.lbl_status)
         top_row.addStretch(1)
 
         self.lbl_version = QLabel(f"v{APP_VERSION}", self)
-        self.lbl_version.setStyleSheet("color: #71839D; font-size: 10px; font-weight: 500;")
+        self.lbl_version.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 10px; font-weight: 500;")
         top_row.addWidget(self.lbl_version)
         layout.addLayout(top_row)
 
@@ -434,24 +434,24 @@ class WorkstationStatusWidget(QFrame):
         mid_row.setContentsMargins(0, 0, 0, 0)
 
         lbl_load_title = QLabel("System Load", self)
-        lbl_load_title.setStyleSheet("color: #71839D; font-size: 10.5px;")
+        lbl_load_title.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 10.5px;")
         mid_row.addWidget(lbl_load_title)
         mid_row.addStretch(1)
 
         self.sidebar_load_label = QLabel("0.0%", self)
-        self.sidebar_load_label.setStyleSheet("color: #E8EEF8; font-size: 11px; font-weight: 700;")
+        self.sidebar_load_label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; font-size: 11px; font-weight: 700;")
         mid_row.addWidget(self.sidebar_load_label)
         layout.addLayout(mid_row)
 
         # 3. Mini Gradient Progress Bar
         self.progress_bar = QFrame(self)
         self.progress_bar.setFixedHeight(4)
-        self.progress_bar.setStyleSheet("background-color: #19263A; border-radius: 2px;")
+        self.progress_bar.setStyleSheet("background-color: #1C191D; border-radius: 2px;")
         layout.addWidget(self.progress_bar)
 
         # 4. Topology Tag
         self.lbl_topology = QLabel(f"{self.physical_cores}P / {self.logical_cores}L Cores Online", self)
-        self.lbl_topology.setStyleSheet("color: #71839D; font-size: 9.5px;")
+        self.lbl_topology.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 9.5px;")
         layout.addWidget(self.lbl_topology)
 
     def update_load(self, percent: float) -> None:
@@ -473,8 +473,8 @@ class WorkstationStatusWidget(QFrame):
 
         fill_rect = QRectF(float(pb_geo.x()), float(pb_geo.y()), fill_w, float(pb_geo.height()))
         grad = QLinearGradient(fill_rect.topLeft(), fill_rect.topRight())
-        grad.setColorAt(0.0, QColor(GRADIENT_PRIMARY_START))
-        grad.setColorAt(1.0, QColor(GRADIENT_PRIMARY_END))
+        grad.setColorAt(0.0, QColor("#19C99A"))
+        grad.setColorAt(1.0, QColor("#42D6A0"))
         p.setBrush(QBrush(grad))
         p.setPen(Qt.NoPen)
         p.drawRoundedRect(fill_rect, 2.0, 2.0)

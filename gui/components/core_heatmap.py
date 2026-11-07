@@ -38,17 +38,17 @@ def get_heatmap_colors(percent: float) -> tuple[QColor, QColor, QColor]:
     """Returns (background_color, border_color, accent_color) for a given utilization percentage."""
     p = max(0.0, min(100.0, percent))
     if p < 25.0:
-        # Cool Slate / Cyan
-        return QColor("#121D2F"), QColor("#1E3654"), QColor(COLOR_ACCENT_SECONDARY)
+        # Deep Black with subtle Teal
+        return QColor("#101512"), QColor("#1B2A22"), QColor("#19C99A")
     elif p < 50.0:
-        # Vibrant Blue
-        return QColor("#14273E"), QColor("#224572"), QColor(COLOR_ACCENT)
+        # Deep Black with Emerald
+        return QColor("#111A15"), QColor("#1E3A2C"), QColor("#42D6A0")
     elif p < 75.0:
-        # Warm Amber / Gold
-        return QColor("#272318"), QColor("#4A3F24"), QColor(COLOR_TASK)
+        # Deep Black with Amber
+        return QColor("#1F1911"), QColor("#3D2E1A"), QColor("#E4AD69")
     else:
-        # Coral / Crimson Alert
-        return QColor("#30181F"), QColor("#5A2432"), QColor(COLOR_DANGER)
+        # Deep Black with Coral Red
+        return QColor("#241113"), QColor("#481D22"), QColor("#EF737D")
 
 
 class CoreHeatmapGridWidget(QWidget):
@@ -157,7 +157,7 @@ class CoreHeatmapGridWidget(QWidget):
         bg_col, border_col, accent_col = get_heatmap_colors(pct)
 
         if is_hover:
-            border_col = QColor("#579BFF")
+            border_col = QColor("#19C99A")
 
         # 1. Tile Base Background
         painter.setPen(QPen(border_col, 1.5 if is_hover else 1.0))
@@ -209,7 +209,7 @@ class CoreHeatmapGridWidget(QWidget):
 
         # Track
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#1C283E"))
+        painter.setBrush(QColor("#1C191D"))
         painter.drawRoundedRect(QRectF(bar_x, bar_y, bar_w, bar_h), 1.5, 1.5)
 
         # Active Fill

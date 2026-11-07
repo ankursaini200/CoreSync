@@ -27,14 +27,14 @@ from utils.config import (
 )
 
 STATUS_COLORS = {
-    TaskStatus.PENDING: (QColor("#18202C"), QColor(COLOR_BORDER), QColor(COLOR_TEXT_MUTED)),
-    TaskStatus.BLOCKED: (QColor("#18202C"), QColor(COLOR_BORDER), QColor("#6E7A8A")),
-    TaskStatus.READY: (QColor("#241F16"), QColor(COLOR_WARNING), QColor("#E0BC75")),
-    TaskStatus.QUEUED: (QColor("#2B2016"), QColor("#B88636"), QColor("#E5A84F")),
-    TaskStatus.RUNNING: (QColor("#162333"), QColor(COLOR_ACCENT), QColor("#89BAE8")),
-    TaskStatus.COMPLETED: (QColor("#14291F"), QColor(COLOR_SUCCESS), QColor("#66C097")),
-    TaskStatus.FAILED: (QColor("#2E181B"), QColor(COLOR_DANGER), QColor("#E58A8A")),
-    TaskStatus.CANCELLED: (QColor("#18202C"), QColor(COLOR_BORDER), QColor(COLOR_TEXT_MUTED)),
+    TaskStatus.PENDING: (QColor("#151416"), QColor(COLOR_BORDER), QColor(COLOR_TEXT_MUTED)),
+    TaskStatus.BLOCKED: (QColor("#1C191D"), QColor("#E4AD69"), QColor("#E4AD69")),
+    TaskStatus.READY: (QColor("#1A1813"), QColor("#E4AD69"), QColor("#F1BC70")),
+    TaskStatus.QUEUED: (QColor("#1A1813"), QColor("#E4AD69"), QColor("#F1BC70")),
+    TaskStatus.RUNNING: (QColor("#1D1721"), QColor("#A879F5"), QColor("#D17BE8")),
+    TaskStatus.COMPLETED: (QColor("#101512"), QColor("#19C99A"), QColor("#42D6A0")),
+    TaskStatus.FAILED: (QColor("#241113"), QColor(COLOR_DANGER), QColor("#EF737D")),
+    TaskStatus.CANCELLED: (QColor("#151416"), QColor(COLOR_BORDER), QColor(COLOR_TEXT_MUTED)),
 }
 
 
@@ -203,7 +203,7 @@ class DAGCanvasWidget(QWidget):
         """Draw rounded task card with status and metadata."""
         bg_color, border_color, text_color = STATUS_COLORS.get(
             task.status,
-            (QColor("#18202C"), QColor(COLOR_BORDER), QColor(COLOR_TEXT_MUTED)),
+            (QColor("#151416"), QColor(COLOR_BORDER), QColor(COLOR_TEXT_MUTED)),
         )
 
         # Card body

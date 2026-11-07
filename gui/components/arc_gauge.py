@@ -50,7 +50,7 @@ class ArcGaugeWidget(QWidget):
         self.subtitle = subtitle
         self.color_start = QColor(color_start)
         self.color_end = QColor(color_end)
-        self.track_color = QColor("#1C283E")
+        self.track_color = QColor("#1C191D")
         self.border_color = QColor(COLOR_BORDER)
 
         self.setMinimumSize(140, 140)
@@ -169,7 +169,7 @@ class ArcGaugeWidget(QWidget):
         pct = (self._value / self._max_value) * 100.0
         tip_text = f"<b>{self.title}</b><br/>Value: <b>{val_str}</b> ({pct:.1f}%)"
         if self.subtitle:
-            tip_text += f"<br/><span style='color:#8FA0B8;'>{self.subtitle}</span>"
+            tip_text += f"<br/><span style='color:#AAA4AE;'>{self.subtitle}</span>"
         QToolTip.showText(event.globalPosition().toPoint(), tip_text, self)
         super().mouseMoveEvent(event)
 

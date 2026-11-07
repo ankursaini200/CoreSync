@@ -85,7 +85,7 @@ class CoreWidget(QFrame):
 
         # Worker Assignment Indicator Row
         self.worker_lbl = QLabel("", self)
-        self.worker_lbl.setStyleSheet("color: #58a6ff; font-size: 9px; font-weight: 700;")
+        self.worker_lbl.setStyleSheet("color: #19C99A; font-size: 9px; font-weight: 700;")
         self.worker_lbl.setVisible(False)
         layout.addWidget(self.worker_lbl)
 
@@ -135,7 +135,7 @@ class CoreWidget(QFrame):
         if worker_names:
             self.worker_lbl.setText(f"Worker: {', '.join(worker_names)}")
             self.worker_lbl.setVisible(True)
-            self.setStyleSheet(f"QFrame#coreBox_{self.cpu_id} {{ border: 1px solid #58a6ff; background-color: #172233; }}")
+            self.setStyleSheet(f"QFrame#coreBox_{self.cpu_id} {{ border: 1px solid #19C99A; background-color: #101512; }}")
         else:
             self.worker_lbl.setText("")
             self.worker_lbl.setVisible(False)
@@ -320,7 +320,7 @@ class CoreMonitorPage(QWidget):
 
         # Status text of preview
         self.affinity_preview_lbl = QLabel(f"Active Preview Mask: {self._format_affinity_list(self.selected_preview_affinity)}")
-        self.affinity_preview_lbl.setStyleSheet("color: #58a6ff; font-weight: 600; font-size: 12px;")
+        self.affinity_preview_lbl.setStyleSheet("color: #19C99A; font-weight: 600; font-size: 12px;")
         layout.addWidget(self.affinity_preview_lbl)
 
         notice = QLabel(

@@ -78,10 +78,10 @@ class ExecutionTimelineWidget(QFrame):
         h = self.height()
 
         # Background
-        painter.fillRect(0, 0, w, h, QColor("#151F30"))
+        painter.fillRect(0, 0, w, h, QColor("#151416"))
 
         if not self._tracks:
-            painter.setPen(QColor("#8FA0B8"))
+            painter.setPen(QColor("#77717C"))
             painter.setFont(QFont("Inter", 10))
             painter.drawText(0, 0, w, h, Qt.AlignCenter, f"No execution timeline available ({self.domain_label}).")
             return
@@ -97,12 +97,12 @@ class ExecutionTimelineWidget(QFrame):
         row_h = max(14, min(30, int(plot_h / max(1, num_tracks))))
 
         # Draw axis line
-        painter.setPen(QPen(QColor("#293B54"), 1))
+        painter.setPen(QPen(QColor("#302B32"), 1))
         painter.drawLine(margin_left, margin_top + plot_h, margin_left + plot_w, margin_top + plot_h)
 
         # Draw axis ticks
         painter.setFont(QFont("Inter", 8))
-        painter.setPen(QColor("#8FA0B8"))
+        painter.setPen(QColor("#77717C"))
         for i in range(5):
             frac = i / 4.0
             x = margin_left + int(frac * plot_w)
@@ -112,22 +112,23 @@ class ExecutionTimelineWidget(QFrame):
             painter.drawText(x - 30, margin_top + plot_h + 16, 60, 14, Qt.AlignCenter, label)
 
         # Draw tracks
+        default_color = QColor("#19C99A") if self.domain_label == "seconds" else QColor("#A879F5")
         for idx, track in enumerate(self._tracks):
             y = margin_top + idx * row_h
             t_label = str(track.get("track_id", f"T-{idx}"))
-            painter.setPen(QColor("#E5EAF1"))
+            painter.setPen(QColor("#F2F0F3"))
             painter.drawText(8, y + 2, margin_left - 14, row_h, Qt.AlignRight | Qt.AlignVCenter, t_label)
 
             # Draw intervals
             for item in track.get("intervals", []):
                 s, e = item[0], item[1]
-                color = item[2] if len(item) > 2 else QColor("#579BFF")
+                color = item[2] if len(item) > 2 else default_color
                 x_s = margin_left + int((max(0.0, s) / self._max_val) * plot_w)
                 x_e = margin_left + int((min(self._max_val, e) / self._max_val) * plot_w)
                 box_w = max(2, x_e - x_s)
 
                 painter.fillRect(x_s, y + 2, box_w, row_h - 4, color)
-                painter.setPen(QPen(QColor("#293B54"), 1))
+                painter.setPen(QPen(QColor("#302B32"), 1))
                 painter.drawRect(x_s, y + 2, box_w, row_h - 4)
 
 
@@ -299,7 +300,7 @@ class ComparisonPage(QWidget):
         self.lbl_real_os = QLabel(f"• OS Platform: {self.hw_metadata.get('operating_system', 'Linux')} (spawn-context)")
         self.lbl_real_workers = QLabel("• Active Workers: 4 Spawned Processes")
         for lbl in (self.lbl_real_cpu, self.lbl_real_topology, self.lbl_real_os, self.lbl_real_workers):
-            lbl.setStyleSheet("color: #8b949e; font-size: 11px;")
+            lbl.setStyleSheet("color: #AAA4AE; font-size: 11px;")
             r_layout.addWidget(lbl)
         over_row.addWidget(self.card_real_env, 1)
 
@@ -322,7 +323,7 @@ class ComparisonPage(QWidget):
         self.lbl_virt_scheduler = QLabel("• Virtual Scheduler: First Come First Served (FCFS)")
         self.lbl_virt_clock = QLabel("• Clock Domain: Discrete Logical Clock Ticks (integer steps)")
         for lbl in (self.lbl_virt_cpu, self.lbl_virt_topology, self.lbl_virt_scheduler, self.lbl_virt_clock):
-            lbl.setStyleSheet("color: #8b949e; font-size: 11px;")
+            lbl.setStyleSheet("color: #AAA4AE; font-size: 11px;")
             v_layout.addWidget(lbl)
         over_row.addWidget(self.card_virt_env, 1)
 
@@ -354,7 +355,7 @@ class ComparisonPage(QWidget):
         self.progress_bar.setTextVisible(True)
 
         self.status_label = QLabel("Ready to configure and execute comparison.")
-        self.status_label.setStyleSheet("color: #8b949e; font-size: 11px;")
+        self.status_label.setStyleSheet("color: #AAA4AE; font-size: 11px;")
 
         ctl_layout.addWidget(self.btn_run)
         ctl_layout.addWidget(self.btn_cancel)
@@ -443,7 +444,7 @@ class ComparisonPage(QWidget):
         t_comp_layout.addLayout(comp_grid)
 
         self.equiv_detail_label = QLabel("Configure a workload and execute comparison to view analysis.")
-        self.equiv_detail_label.setStyleSheet("color: #58a6ff; font-weight: 500; font-size: 11px;")
+        self.equiv_detail_label.setStyleSheet("color: #19C99A; font-weight: 500; font-size: 11px;")
         t_comp_layout.addWidget(self.equiv_detail_label)
 
         # Task Comparison Table
@@ -483,7 +484,7 @@ class ComparisonPage(QWidget):
             "• EDUCATIONAL SIMULATION: Virtual Lab models algorithmic task scheduling and virtual core allocations assuming idealized computational bursts without OS jitter.\n"
             "• EQUIVALENCE: Workload equivalence certifies identical logical task DAG topologies or array partitioning rather than identical elapsed execution time."
         )
-        e_text.setStyleSheet("color: #8b949e; line-height: 1.5; font-size: 11px;")
+        e_text.setStyleSheet("color: #AAA4AE; line-height: 1.5; font-size: 11px;")
         e_layout.addWidget(e_text)
         layout.addWidget(edu_card)
 
@@ -716,14 +717,14 @@ class ComparisonPage(QWidget):
             self.card_r_util.set_value(f"{real_res.worker_utilization_pct:.1f} %", "Worker core busy ratio", "info", "Mathematically Derived")
             self.card_r_mem.set_value(f"{real_res.peak_memory_rss_mb:.1f} MB", "Process RSS", "neutral", "Directly Measured")
 
-            # Timeline
+            # Timeline (Real System - Emerald identity)
             r_tracks = []
             for wr in real_res.task_completions:
                 w_id = wr.get("worker_id", 0)
                 dur = wr.get("duration_s", 0.0)
                 r_tracks.append({
                     "track_id": f"W-{w_id}",
-                    "intervals": [(0.0, dur, QColor("#3fb950"))],
+                    "intervals": [(0.0, dur, QColor("#42D6A0"))],
                 })
             self.timeline_real.set_timeline_data(r_tracks, max(0.001, real_res.wall_clock_time_s))
 
@@ -737,7 +738,7 @@ class ComparisonPage(QWidget):
             self.card_v_thru.set_value(f"{virt_res.simulated_throughput_tasks_per_tick:.4f}", "Tasks per tick", "neutral", "Simulated Virtual")
             self.card_v_preempt.set_value(str(virt_res.preemption_count), "Context switches", "neutral", "Simulated Virtual")
 
-            # Timeline
+            # Timeline (Virtual Lab - Violet identity)
             v_tracks = []
             for t in virt_res.task_completion_order:
                 cid = t.get("assigned_core_id", 0)
@@ -745,7 +746,7 @@ class ComparisonPage(QWidget):
                 f = t.get("finish_tick", m_ticks) or m_ticks
                 v_tracks.append({
                     "track_id": f"Core-{cid}",
-                    "intervals": [(s, f, QColor("#58a6ff"))],
+                    "intervals": [(s, f, QColor("#A879F5"))],
                 })
             self.timeline_virt.set_timeline_data(v_tracks, float(max(1, m_ticks)))
 

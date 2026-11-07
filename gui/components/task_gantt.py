@@ -95,7 +95,7 @@ class TaskExecutionGanttWidget(QWidget):
             t_rect = QRectF(ml, ty, plot_w, track_h - 4.0)
 
             painter.setPen(QPen(QColor(COLOR_BORDER), 1, Qt.DashLine))
-            painter.setBrush(QBrush(QColor("#101726") if wid % 2 == 0 else QColor(COLOR_BG_CARD_ALT)))
+            painter.setBrush(QBrush(QColor("#111113") if wid % 2 == 0 else QColor(COLOR_BG_CARD_ALT)))
             painter.drawRoundedRect(t_rect, 4.0, 4.0)
 
             # Worker Track Label
@@ -153,7 +153,7 @@ class TaskExecutionGanttWidget(QWidget):
             # Task Label Inside Bar
             if bw >= 30.0:
                 painter.setFont(QFont("Inter", 7, QFont.Bold))
-                painter.setPen(QColor("#0B1020"))
+                painter.setPen(QColor("#08090B"))
                 label_text = f"{item.name[:8]} ({item.duration_ms:.1f}ms)"
                 painter.drawText(QRectF(bx + 4, ty, bw - 8, bh), Qt.AlignCenter, label_text)
 

@@ -82,7 +82,7 @@ class VirtualConfigPage(QWidget):
             "Configure software-simulated multicore CPUs with arbitrary core topologies, "
             "asymmetric P-core/E-core performance ratios, and custom clock multipliers."
         )
-        desc.setStyleSheet("color: #9AA5B4;")
+        desc.setStyleSheet("color: #AAA4AE;")
         left_col.addWidget(desc)
         layout.addLayout(left_col)
         layout.addStretch(1)
@@ -271,7 +271,7 @@ class VirtualConfigPage(QWidget):
             "• Educational Topology Exploration: Test theoretical 32, 64, or 128-core architectures regardless "
             "of the physical limitations of your host machine."
         )
-        notes.setStyleSheet("color: #8b949e; line-height: 1.5; font-size: 12px;")
+        notes.setStyleSheet("color: #AAA4AE; line-height: 1.5; font-size: 12px;")
         layout.addWidget(notes)
 
         return card

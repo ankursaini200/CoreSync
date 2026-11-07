@@ -63,6 +63,7 @@ class RealtimeAreaChartWidget(QWidget):
         self._hover_x: Optional[float] = None
         self.setMinimumHeight(170)
         self.setMouseTracking(True)
+        self.setStyleSheet(f"background-color: #0D0D10; border: 1px solid {COLOR_BORDER}; border-radius: 8px;")
 
     def add_sample(self, val1: float, val2: Optional[float] = None) -> None:
         """Push new sample to ring buffer and trigger repaint."""
@@ -133,7 +134,7 @@ class RealtimeAreaChartWidget(QWidget):
         # 5. Interactive Crosshair on Hover
         if self._hover_x is not None and ml <= self._hover_x <= ml + plot_w:
             # Draw vertical guide line
-            painter.setPen(QPen(QColor("#70ABFF"), 1, Qt.DashDotLine))
+            painter.setPen(QPen(self.series1_color, 1, Qt.DashDotLine))
             painter.drawLine(int(self._hover_x), int(mt), int(self._hover_x), int(mt + plot_h))
 
             # Find closest sample index

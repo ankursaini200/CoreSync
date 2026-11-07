@@ -44,7 +44,7 @@ class VirtualCoreCard(QFrame):
         header_layout.setContentsMargins(0, 0, 0, 0)
 
         self.label_id = QLabel(f"Virtual Core #{self.core.core_id}")
-        self.label_id.setStyleSheet("font-weight: 700; font-size: 12px; color: #e6edf3;")
+        self.label_id.setStyleSheet("font-weight: 700; font-size: 12px; color: #F2F0F3;")
         header_layout.addWidget(self.label_id)
         header_layout.addStretch(1)
 
@@ -66,7 +66,7 @@ class VirtualCoreCard(QFrame):
 
         # State & Task
         self.label_task = QLabel("Task: None (IDLE)")
-        self.label_task.setStyleSheet("font-size: 11px; color: #8b949e;")
+        self.label_task.setStyleSheet("font-size: 11px; color: #77717C;")
         layout.addWidget(self.label_task)
 
         # Simulated Utilization Bar
@@ -79,7 +79,7 @@ class VirtualCoreCard(QFrame):
         bar_layout.addWidget(self.bar)
 
         self.label_pct = QLabel("0.0%")
-        self.label_pct.setStyleSheet("font-size: 11px; font-weight: 600; color: #58a6ff;")
+        self.label_pct.setStyleSheet("font-size: 11px; font-weight: 600; color: #19C99A;")
         self.label_pct.setFixedWidth(45)
         self.label_pct.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         bar_layout.addWidget(self.label_pct)
@@ -107,7 +107,7 @@ class VirtualCoreCard(QFrame):
             self.label_task.setStyleSheet(f"font-size: 11px; color: {accent_col.name()}; font-weight: 600;")
         else:
             self.label_task.setText("Task: None (IDLE)")
-            self.label_task.setStyleSheet("font-size: 11px; color: #8FA0B8;")
+            self.label_task.setStyleSheet("font-size: 11px; color: #77717C;")
 
 
 class VirtualMonitorPage(QWidget):
@@ -164,7 +164,7 @@ class VirtualMonitorPage(QWidget):
             "Visual observation grid for individual virtual cores, simulated cycle throughput, "
             "and dynamic task assignments."
         )
-        desc.setStyleSheet("color: #9AA5B4;")
+        desc.setStyleSheet("color: #AAA4AE;")
         left_col.addWidget(desc)
         layout.addLayout(left_col)
         layout.addStretch(1)
@@ -172,7 +172,7 @@ class VirtualMonitorPage(QWidget):
         status_col = QVBoxLayout()
         status_col.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.badge_status = QLabel("Virtual Core Matrix")
-        self.badge_status.setStyleSheet("color: #9AA5B4; font-size: 11px;")
+        self.badge_status.setStyleSheet("color: #AAA4AE; font-size: 11px;")
         status_col.addWidget(self.badge_status, alignment=Qt.AlignRight)
         layout.addLayout(status_col)
 

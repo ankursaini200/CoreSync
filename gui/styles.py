@@ -1,4 +1,8 @@
-"""Modern dark theme stylesheet and color constants for CoreSync."""
+"""Modern dark theme stylesheet and color constants for CoreSync.
+
+Implements the Black Gradient Design System with charcoal surfaces and rich accents:
+Deep Black (#08090B) + Charcoal Gradients (#151416 -> #211D22) + Teal, Emerald, Violet, and Amber Accents.
+"""
 
 from utils.config import (
     COLOR_BG_DARK,
@@ -12,12 +16,25 @@ from utils.config import (
     COLOR_BORDER_LIGHT,
     COLOR_ACCENT,
     COLOR_ACCENT_HOVER,
+    COLOR_ACCENT_SECONDARY,
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY,
     COLOR_TEXT_MUTED,
     COLOR_SUCCESS,
     COLOR_WARNING,
     COLOR_DANGER,
+    COLOR_TEAL,
+    COLOR_EMERALD,
+    COLOR_VIOLET,
+    GRADIENT_BG_START,
+    GRADIENT_BG_MID,
+    GRADIENT_BG_END,
+    GRADIENT_CARD_CHARCOAL_START,
+    GRADIENT_CARD_CHARCOAL_END,
+    GRADIENT_TEAL_AMBIENT_START,
+    GRADIENT_TEAL_AMBIENT_END,
+    GRADIENT_VIOLET_AMBIENT_START,
+    GRADIENT_VIOLET_AMBIENT_END,
 )
 
 DARK_STYLESHEET = f"""
@@ -32,6 +49,11 @@ QWidget {{
     color: {COLOR_TEXT_PRIMARY};
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Ubuntu', 'Roboto', sans-serif;
     font-size: 13px;
+}}
+
+/* Main Application Canvas Gradient */
+#contentContainer, QStackedWidget {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {GRADIENT_BG_START}, stop:0.5 {GRADIENT_BG_MID}, stop:1 {GRADIENT_BG_END});
 }}
 
 /* Scroll Area & Bars */
@@ -100,7 +122,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 }}
 
 QLabel.tag-pill {{
-    background-color: {COLOR_SURFACE_SECONDARY};
+    background-color: {COLOR_SURFACE_ELEVATED};
     border: 1px solid {COLOR_BORDER};
     border-radius: 12px;
     padding: 4px 12px;
@@ -109,7 +131,7 @@ QLabel.tag-pill {{
     font-weight: 600;
 }}
 
-/* Sidebar Navigation */
+/* Sidebar Navigation (Preserved) */
 #sidebar {{
     background-color: {COLOR_BG_SIDEBAR};
     border-right: 1px solid {COLOR_BORDER};
@@ -200,9 +222,9 @@ QPushButton.nav-button:checked {{
     border-left: 3px solid {COLOR_ACCENT};
 }}
 
-/* Content Container & Cards */
+/* Content Container & Black Gradient Cards */
 QFrame.card {{
-    background-color: {COLOR_BG_CARD};
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {GRADIENT_CARD_CHARCOAL_START}, stop:1 {GRADIENT_CARD_CHARCOAL_END});
     border: 1px solid {COLOR_BORDER};
     border-radius: 8px;
     padding: 14px 16px;
@@ -213,10 +235,32 @@ QFrame.card:hover {{
 }}
 
 QFrame.card-alt {{
-    background-color: {COLOR_BG_CARD_ALT};
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {COLOR_SURFACE_SECONDARY}, stop:1 {COLOR_SURFACE_ELEVATED});
     border: 1px solid {COLOR_BORDER};
     border-radius: 8px;
     padding: 14px 16px;
+}}
+
+QFrame.card-teal {{
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {GRADIENT_TEAL_AMBIENT_START}, stop:1 {GRADIENT_TEAL_AMBIENT_END});
+    border: 1px solid {COLOR_BORDER};
+    border-radius: 8px;
+    padding: 14px 16px;
+}}
+
+QFrame.card-teal:hover {{
+    border: 1px solid #234839;
+}}
+
+QFrame.card-violet {{
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {GRADIENT_VIOLET_AMBIENT_START}, stop:1 {GRADIENT_VIOLET_AMBIENT_END});
+    border: 1px solid {COLOR_BORDER};
+    border-radius: 8px;
+    padding: 14px 16px;
+}}
+
+QFrame.card-violet:hover {{
+    border: 1px solid #432E58;
 }}
 
 /* Typography Hierarchy */
@@ -252,16 +296,6 @@ QLabel.metric-value {{
 QLabel.metric-label {{
     color: {COLOR_TEXT_MUTED};
     font-size: 12px;
-    font-weight: 500;
-}}
-
-QLabel.tag-pill {{
-    background-color: {COLOR_BG_CARD_ALT};
-    color: {COLOR_TEXT_MUTED};
-    border: 1px solid {COLOR_BORDER};
-    border-radius: 4px;
-    padding: 2px 8px;
-    font-size: 11px;
     font-weight: 500;
 }}
 
@@ -301,21 +335,21 @@ QSpinBox:focus, QDoubleSpinBox:focus, QLineEdit:focus {{
 
 /* Buttons */
 QPushButton.btn-primary {{
-    background-color: {COLOR_ACCENT};
-    color: #ffffff;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_TEAL}, stop:1 {COLOR_EMERALD});
+    color: #08090B;
     border: none;
     border-radius: 5px;
     padding: 7px 14px;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 12px;
 }}
 
 QPushButton.btn-primary:hover {{
-    background-color: {COLOR_ACCENT_HOVER};
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #22DCAB, stop:1 #52E2B0);
 }}
 
 QPushButton.btn-primary:pressed {{
-    background-color: #3B7BB5;
+    background-color: #15A57E;
 }}
 
 QPushButton.btn-secondary {{
@@ -344,7 +378,39 @@ QPushButton.btn-danger {{
 }}
 
 QPushButton.btn-danger:hover {{
-    background-color: #D97373;
+    background-color: #FA8992;
+}}
+
+/* Tab Widget & Tab Bar */
+QTabWidget::pane {{
+    border: 1px solid {COLOR_BORDER};
+    background-color: transparent;
+    border-radius: 6px;
+    top: -1px;
+}}
+
+QTabBar::tab {{
+    background-color: {COLOR_SURFACE_SECONDARY};
+    color: {COLOR_TEXT_MUTED};
+    border: 1px solid {COLOR_BORDER};
+    padding: 8px 18px;
+    margin-right: 4px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    font-weight: 500;
+    font-size: 12px;
+}}
+
+QTabBar::tab:selected {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {COLOR_SURFACE_ELEVATED}, stop:1 {COLOR_BG_CARD});
+    color: {COLOR_TEXT_PRIMARY};
+    font-weight: 700;
+    border-bottom: 2px solid {COLOR_ACCENT};
+}}
+
+QTabBar::tab:hover:!selected {{
+    background-color: {COLOR_SURFACE_ELEVATED};
+    color: {COLOR_TEXT_PRIMARY};
 }}
 
 /* Tables */
@@ -352,14 +418,14 @@ QTableWidget {{
     background-color: {COLOR_BG_CARD};
     border: 1px solid {COLOR_BORDER};
     border-radius: 6px;
-    gridline-color: {COLOR_BORDER};
+    gridline-color: #221F24;
     color: {COLOR_TEXT_PRIMARY};
     selection-background-color: {COLOR_BG_HOVER};
     selection-color: {COLOR_TEXT_PRIMARY};
 }}
 
 QHeaderView::section {{
-    background-color: {COLOR_BG_CARD_ALT};
+    background-color: {COLOR_SURFACE_SECONDARY};
     color: {COLOR_TEXT_MUTED};
     border: none;
     border-bottom: 1px solid {COLOR_BORDER};
@@ -381,7 +447,7 @@ QProgressBar {{
 }}
 
 QProgressBar::chunk {{
-    background-color: {COLOR_ACCENT};
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {COLOR_TEAL}, stop:1 {COLOR_EMERALD});
     border-radius: 2px;
 }}
 

@@ -136,7 +136,7 @@ class SettingsPage(QWidget):
             "Configure process lifecycle timeouts, hardware inspection mechanisms, "
             "logging thresholds, and workstation UI preferences."
         )
-        desc.setStyleSheet("color: #9AA5B4;")
+        desc.setStyleSheet("color: #AAA4AE;")
         left_col.addWidget(desc)
         layout.addLayout(left_col)
         layout.addStretch(1)
@@ -144,7 +144,7 @@ class SettingsPage(QWidget):
         status_col = QVBoxLayout()
         status_col.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         lbl_status = QLabel("Active Settings")
-        lbl_status.setStyleSheet("color: #9AA5B4; font-size: 11px;")
+        lbl_status.setStyleSheet("color: #AAA4AE; font-size: 11px;")
         status_col.addWidget(lbl_status, alignment=Qt.AlignRight)
         layout.addLayout(status_col)
 
@@ -271,7 +271,7 @@ class SettingsPage(QWidget):
             f"• Multiprocessing Start Method: spawn (Mandatory for Qt GUI isolation)"
         )
         info_label = QLabel(info_text)
-        info_label.setStyleSheet("color: #8b949e; line-height: 1.6; font-family: monospace; font-size: 12px;")
+        info_label.setStyleSheet("color: #AAA4AE; line-height: 1.6; font-family: monospace; font-size: 12px;")
         layout.addWidget(info_label)
 
         return card

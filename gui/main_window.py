@@ -115,6 +115,7 @@ class MainWindow(QMainWindow):
 
         # 2. Main Content Container (Header + Stacked Pages)
         content_container = QWidget(self)
+        content_container.setObjectName("contentContainer")
         content_layout = QVBoxLayout(content_container)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
@@ -202,29 +203,29 @@ class MainWindow(QMainWindow):
         # Categories & Navigation Items (Title, Index, Icon Type, Accent Color)
         categories = [
             ("OVERVIEW", [
-                ("Dashboard", 0, "dashboard", "#4776E6"),
+                ("Dashboard", 0, "dashboard", "#A879F5"),
             ]),
             ("REAL SYSTEM", [
-                ("Core Monitor", 1, "core_monitor", "#36C9E8"),
-                ("Process Monitor", 2, "process_monitor", "#159D91"),
-                ("Real CPU Stress", 3, "real_stress", "#F07178"),
+                ("Core Monitor", 1, "core_monitor", "#19C99A"),
+                ("Process Monitor", 2, "process_monitor", "#A879F5"),
+                ("Real CPU Stress", 3, "real_stress", "#E4AD69"),
             ]),
             ("CPU SCHEDULING", [
-                ("Process Scheduler", 11, "process_scheduler", "#D18B42"),
+                ("Process Scheduler", 11, "process_scheduler", "#E4AD69"),
             ]),
             ("VIRTUAL LAB", [
-                ("Virtual CPU Config", 4, "virtual_config", "#7657D5"),
-                ("Virtual Core Monitor", 5, "virtual_monitor", "#A78BFA"),
-                ("Virtual Scheduler", 6, "virtual_scheduler", "#A78BFA"),
+                ("Virtual CPU Config", 4, "virtual_config", "#A879F5"),
+                ("Virtual Core Monitor", 5, "virtual_monitor", "#42D6A0"),
+                ("Virtual Scheduler", 6, "virtual_scheduler", "#E4AD69"),
             ]),
             ("PARALLEL PROCESSING", [
-                ("Data Parallelism", 7, "data_parallel", "#36C9E8"),
-                ("Task Parallelism", 8, "task_parallel", "#7657D5"),
+                ("Data Parallelism", 7, "data_parallel", "#19C99A"),
+                ("Task Parallelism", 8, "task_parallel", "#A879F5"),
             ]),
             ("ANALYTICS & COMPARISON", [
-                ("Performance Analytics", 9, "performance", "#4776E6"),
-                ("Real vs Virtual Comparison", 12, "comparison", "#36C9E8"),
-                ("Settings", 10, "settings", "#96A8C2"),
+                ("Performance Analytics", 9, "performance", "#19C99A"),
+                ("Real vs Virtual Comparison", 12, "comparison", "#42D6A0"),
+                ("Settings", 10, "settings", "#AAA4AE"),
             ]),
         ]
 

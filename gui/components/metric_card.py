@@ -89,7 +89,7 @@ class MetricCard(QFrame):
         header_layout.addStretch(1)
 
         self.status_label = QLabel(self)
-        self.status_label.setStyleSheet("color: #9AA5B4; font-size: 11px; font-weight: 500;")
+        self.status_label.setStyleSheet("color: #AAA4AE; font-size: 11px; font-weight: 500;")
         header_layout.addWidget(self.status_label)
 
         self.badge = _MetricStatusProxy(self.status_label)

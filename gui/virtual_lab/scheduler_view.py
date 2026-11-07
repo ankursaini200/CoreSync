@@ -85,7 +85,7 @@ class VirtualSchedulerPage(QWidget):
             "Observe FCFS, Priority, and Round Robin scheduling algorithms dispatching synthetic "
             "workloads across your configured virtual multicore processor."
         )
-        desc.setStyleSheet("color: #9AA5B4;")
+        desc.setStyleSheet("color: #AAA4AE;")
         left_col.addWidget(desc)
         layout.addLayout(left_col)
         layout.addStretch(1)

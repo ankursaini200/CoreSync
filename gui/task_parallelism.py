@@ -212,7 +212,7 @@ class TaskParallelismPage(QWidget):
         self.lbl_hw_info = QLabel(
             f"Detected Host: {self.summary.cpu_model} ({self.summary.physical_cores}P / {self.summary.logical_cores}L Cores)"
         )
-        self.lbl_hw_info.setStyleSheet("color: #4B91D1; font-size: 11px; font-weight: 600;")
+        self.lbl_hw_info.setStyleSheet("color: #19C99A; font-size: 11px; font-weight: 600;")
         grid.addWidget(self.lbl_hw_info, 3, 0, 1, 4)
 
         layout.addLayout(grid)
@@ -249,7 +249,7 @@ class TaskParallelismPage(QWidget):
         layout.addWidget(self.progress_bar)
 
         self.lbl_progress_status = QLabel("Ready. Select a DAG preset and click Execute DAG Benchmark.")
-        self.lbl_progress_status.setStyleSheet("color: #9AA5B4; font-size: 11px;")
+        self.lbl_progress_status.setStyleSheet("color: #AAA4AE; font-size: 11px;")
         layout.addWidget(self.lbl_progress_status)
 
         return card
@@ -379,7 +379,7 @@ class TaskParallelismPage(QWidget):
         self.dag_scroll = QScrollArea()
         self.dag_scroll.setWidgetResizable(False)
         self.dag_scroll.setFixedHeight(270)
-        self.dag_scroll.setStyleSheet("QScrollArea { border: 1px solid #303A49; border-radius: 6px; background-color: #10141B; }")
+        self.dag_scroll.setStyleSheet("QScrollArea { border: 1px solid #302B32; border-radius: 6px; background-color: #08090B; }")
         self.dag_canvas = DAGCanvasWidget()
         self.dag_scroll.setWidget(self.dag_canvas)
         layout.addWidget(self.dag_scroll)

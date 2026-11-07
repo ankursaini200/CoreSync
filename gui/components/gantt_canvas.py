@@ -27,27 +27,27 @@ from PySide6.QtWidgets import (
 from engine.process_scheduler.timeline import BlockType, SchedulingTimeline, TimelineBlock
 
 
-# High-contrast workstation process colors matching rich dark palette
+# High-contrast workstation process colors matching black gradient palette (No Blue)
 PROCESS_PALETTE = [
-    QColor("#579BFF"),  # Sapphire Blue
-    QColor("#42B883"),  # Emerald
-    QColor("#36C9E8"),  # Cyan
-    QColor("#E6B45C"),  # Amber
-    QColor("#9B83F5"),  # Violet
-    QColor("#58D68D"),  # Mint
-    QColor("#F07178"),  # Coral
-    QColor("#80D8FF"),  # Sky
-    QColor("#FFB74D"),  # Warm Gold
-    QColor("#BA68C8"),  # Orchid
+    QColor("#19C99A"),  # Teal
+    QColor("#A879F5"),  # Violet
+    QColor("#42D6A0"),  # Emerald
+    QColor("#E4AD69"),  # Amber
+    QColor("#D17BE8"),  # Magenta
+    QColor("#7956C8"),  # Purple
+    QColor("#EF737D"),  # Coral Red
+    QColor("#F1BC70"),  # Warm Gold
+    QColor("#2DD4BF"),  # Light Teal
+    QColor("#C084FC"),  # Soft Violet
 ]
 
-IDLE_BG = QColor("#151F30")
-IDLE_BORDER = QColor("#293B54")
-IDLE_TEXT = QColor("#8FA0B8")
+IDLE_BG = QColor("#111113")
+IDLE_BORDER = QColor("#302B32")
+IDLE_TEXT = QColor("#77717C")
 
-CS_BG = QColor("#222018")
-CS_BORDER = QColor("#E6B45C")
-CS_TEXT = QColor("#E6B45C")
+CS_BG = QColor("#1F1911")
+CS_BORDER = QColor("#E4AD69")
+CS_TEXT = QColor("#E4AD69")
 
 
 class GanttPaintWidget(QWidget):
@@ -107,10 +107,10 @@ class GanttPaintWidget(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
 
         # Background
-        painter.fillRect(self.rect(), QColor("#0d1117"))
+        painter.fillRect(self.rect(), QColor("#08090B"))
 
         if not self._timeline or not self._timeline.blocks:
-            painter.setPen(QColor("#6e7681"))
+            painter.setPen(QColor("#77717C"))
             font = QFont("Inter", 11)
             painter.setFont(font)
             painter.drawText(
@@ -139,10 +139,10 @@ class GanttPaintWidget(QWidget):
             self._rendered_blocks.append((rect, b))
 
             if b.block_type == BlockType.PROCESS:
-                color = self._pid_color_map.get(b.process_id, QColor("#58a6ff"))
+                color = self._pid_color_map.get(b.process_id, QColor("#19C99A"))
                 # Fill
                 painter.setBrush(QBrush(color.darker(160)))
-                pen_color = QColor("#e3b341") if b.preempted else color
+                pen_color = QColor("#E4AD69") if b.preempted else color
                 pen_style = Qt.DashLine if b.preempted else Qt.SolidLine
                 painter.setPen(QPen(pen_color, 2, pen_style))
                 painter.drawRoundedRect(rect, 4, 4)
@@ -156,14 +156,14 @@ class GanttPaintWidget(QWidget):
                 # Duration label if block wide enough
                 if bw >= 36:
                     painter.setFont(font_small)
-                    painter.setPen(QColor("#c9d1d9"))
+                    painter.setPen(QColor("#AAA4AE"))
                     sub_rect = QRectF(rect.x(), rect.y() + 28, rect.width(), 16)
                     painter.drawText(sub_rect, Qt.AlignCenter, f"{b.duration:g}")
 
                 # Preemption marker badge
                 if b.preempted and bw >= 24:
                     painter.setFont(font_small)
-                    painter.setPen(QColor("#e3b341"))
+                    painter.setPen(QColor("#E4AD69"))
                     p_badge = QRectF(rect.right() - 18, rect.top() + 3, 14, 12)
                     painter.drawText(p_badge, Qt.AlignCenter, "⚡")
 
@@ -191,7 +191,7 @@ class GanttPaintWidget(QWidget):
         max_x = margin_left + (total_time * self.px_per_unit)
 
         # Baseline
-        painter.setPen(QPen(QColor("#30363d"), 1))
+        painter.setPen(QPen(QColor("#302B32"), 1))
         painter.drawLine(int(margin_left), int(ruler_y), int(max_x), int(ruler_y))
 
         # Determine tick step (1, 2, 5, 10, etc.)
@@ -205,10 +205,10 @@ class GanttPaintWidget(QWidget):
         t = 0.0
         while t <= total_time + 1e-9:
             tx = margin_left + (t * self.px_per_unit)
-            painter.setPen(QPen(QColor("#30363d"), 1))
+            painter.setPen(QPen(QColor("#302B32"), 1))
             painter.drawLine(int(tx), int(ruler_y), int(tx), int(ruler_y + 5))
 
-            painter.setPen(QColor("#8b949e"))
+            painter.setPen(QColor("#77717C"))
             lbl_rect = QRectF(tx - 25, ruler_y + 8, 50, 16)
             painter.drawText(lbl_rect, Qt.AlignCenter, f"{t:g}")
             t += tick_step
@@ -216,10 +216,10 @@ class GanttPaintWidget(QWidget):
         # Final timestamp mark if not on tick
         if abs((t - tick_step) - total_time) > 1e-4:
             tx_final = margin_left + (total_time * self.px_per_unit)
-            painter.setPen(QPen(QColor("#58a6ff"), 1))
+            painter.setPen(QPen(QColor("#19C99A"), 1))
             painter.drawLine(int(tx_final), int(ruler_y), int(tx_final), int(ruler_y + 7))
             lbl_rect = QRectF(tx_final - 25, ruler_y + 8, 50, 16)
-            painter.setPen(QColor("#58a6ff"))
+            painter.setPen(QColor("#19C99A"))
             painter.drawText(lbl_rect, Qt.AlignCenter, f"{total_time:g}")
 
     def mouseMoveEvent(self, event) -> None:
@@ -279,15 +279,15 @@ class GanttCanvasWidget(QWidget):
 
         # Legend badges
         lbl_legend_proc = QLabel("■ Process")
-        lbl_legend_proc.setStyleSheet("color: #58a6ff; font-size: 11px; margin-right: 8px;")
+        lbl_legend_proc.setStyleSheet("color: #19C99A; font-size: 11px; margin-right: 8px;")
         ctrl_bar.addWidget(lbl_legend_proc)
 
         lbl_legend_idle = QLabel("■ Idle")
-        lbl_legend_idle.setStyleSheet("color: #8b949e; font-size: 11px; margin-right: 8px;")
+        lbl_legend_idle.setStyleSheet("color: #77717C; font-size: 11px; margin-right: 8px;")
         ctrl_bar.addWidget(lbl_legend_idle)
 
         lbl_legend_cs = QLabel("■ Context Switch")
-        lbl_legend_cs.setStyleSheet("color: #d29922; font-size: 11px; margin-right: 14px;")
+        lbl_legend_cs.setStyleSheet("color: #E4AD69; font-size: 11px; margin-right: 14px;")
         ctrl_bar.addWidget(lbl_legend_cs)
 
         # Zoom buttons

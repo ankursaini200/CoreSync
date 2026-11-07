@@ -129,7 +129,7 @@ class PerformancePage(QWidget):
             "Empirical multi-run benchmarking, statistical variance rollups, and theoretical Amdahl scalability models. "
             "Rigorously segregates directly measured hardware metrics from mathematically derived and simulated indicators."
         )
-        desc.setStyleSheet("color: #9AA5B4; line-height: 1.4;")
+        desc.setStyleSheet("color: #AAA4AE; line-height: 1.4;")
         col.addWidget(desc)
         h_layout.addLayout(col)
         h_layout.addStretch(1)
@@ -190,7 +190,7 @@ class PerformancePage(QWidget):
             "• ESTIMATED_RESIDUAL: Used strictly when a value represents an approximation or estimate rather than a deterministic reduction from verified timing boundaries.\n"
             "• SIMULATED_VIRTUAL: Discrete logical tick steps and virtual core capacity allocations generated inside the single-threaded Virtual Lab simulator (never presented as real host measurements)."
         )
-        p_desc.setStyleSheet("color: #8b949e; line-height: 1.6; font-size: 12px;")
+        p_desc.setStyleSheet("color: #AAA4AE; line-height: 1.6; font-size: 12px;")
         p_layout.addWidget(p_desc)
         layout.addWidget(prov_card)
 
@@ -219,32 +219,32 @@ class PerformancePage(QWidget):
 
         hw_grid.addWidget(QLabel("CPU Model:"), 0, 0)
         l_model = QLabel(str(model))
-        l_model.setStyleSheet("color: #58a6ff; font-weight: bold;")
+        l_model.setStyleSheet("color: #19C99A; font-weight: bold;")
         hw_grid.addWidget(l_model, 0, 1)
 
         hw_grid.addWidget(QLabel("Physical Cores:"), 0, 2)
         l_phys = QLabel(f"{phys} Physical Cores ({hybrid_info})")
-        l_phys.setStyleSheet("color: #7ee787; font-weight: bold;")
+        l_phys.setStyleSheet("color: #42D6A0; font-weight: bold;")
         hw_grid.addWidget(l_phys, 0, 3)
 
         hw_grid.addWidget(QLabel("Logical Threads:"), 1, 0)
         l_logi = QLabel(f"{logi} Logical Processors")
-        l_logi.setStyleSheet("color: #7ee787; font-weight: bold;")
+        l_logi.setStyleSheet("color: #42D6A0; font-weight: bold;")
         hw_grid.addWidget(l_logi, 1, 1)
 
         hw_grid.addWidget(QLabel("Architecture:"), 1, 2)
         l_arch = QLabel(f"{arch} (64-bit Monotonic)")
-        l_arch.setStyleSheet("color: #8b949e;")
+        l_arch.setStyleSheet("color: #AAA4AE;")
         hw_grid.addWidget(l_arch, 1, 3)
 
         hw_grid.addWidget(QLabel("Operating System:"), 2, 0)
         l_os = QLabel(str(os_str))
-        l_os.setStyleSheet("color: #8b949e;")
+        l_os.setStyleSheet("color: #AAA4AE;")
         hw_grid.addWidget(l_os, 2, 1)
 
         hw_grid.addWidget(QLabel("System Memory (RAM):"), 2, 2)
         l_ram = QLabel(f"{ram_tot} Total / {ram_avail} Available")
-        l_ram.setStyleSheet("color: #8b949e;")
+        l_ram.setStyleSheet("color: #AAA4AE;")
         hw_grid.addWidget(l_ram, 2, 3)
 
         hw_layout.addLayout(hw_grid)
@@ -265,7 +265,7 @@ class PerformancePage(QWidget):
             "2. Virtual Lab Scheduler: Pure deterministic simulation running within a single logical thread. "
             "Allows observing Round Robin quantum expiration, starvation, and queueing dynamics without hardware noise."
         )
-        d_text.setStyleSheet("color: #8b949e; line-height: 1.5; font-size: 12px;")
+        d_text.setStyleSheet("color: #AAA4AE; line-height: 1.5; font-size: 12px;")
         d_layout.addWidget(d_text)
         layout.addWidget(dual_card)
 
@@ -349,7 +349,7 @@ class PerformancePage(QWidget):
         c_layout.addWidget(self.dp_progress)
 
         self.dp_status_lbl = QLabel("")
-        self.dp_status_lbl.setStyleSheet("color: #8b949e; font-size: 11px;")
+        self.dp_status_lbl.setStyleSheet("color: #AAA4AE; font-size: 11px;")
         c_layout.addWidget(self.dp_status_lbl)
 
         layout.addWidget(ctrl_card)
@@ -494,7 +494,7 @@ class PerformancePage(QWidget):
         c_layout.addWidget(self.tp_progress)
 
         self.tp_status_lbl = QLabel("")
-        self.tp_status_lbl.setStyleSheet("color: #8b949e; font-size: 11px;")
+        self.tp_status_lbl.setStyleSheet("color: #AAA4AE; font-size: 11px;")
         c_layout.addWidget(self.tp_status_lbl)
 
         layout.addWidget(ctrl_card)
@@ -622,7 +622,7 @@ class PerformancePage(QWidget):
         c_layout.addLayout(grid)
 
         self.sched_status_lbl = QLabel("")
-        self.sched_status_lbl.setStyleSheet("color: #8b949e; font-size: 11px;")
+        self.sched_status_lbl.setStyleSheet("color: #AAA4AE; font-size: 11px;")
         c_layout.addWidget(self.sched_status_lbl)
 
         layout.addWidget(ctrl_card)
@@ -739,7 +739,7 @@ class PerformancePage(QWidget):
         c_layout.addLayout(grid)
 
         self.vlab_status_lbl = QLabel("")
-        self.vlab_status_lbl.setStyleSheet("color: #8b949e; font-size: 11px;")
+        self.vlab_status_lbl.setStyleSheet("color: #AAA4AE; font-size: 11px;")
         c_layout.addWidget(self.vlab_status_lbl)
 
         layout.addWidget(ctrl_card)
@@ -799,7 +799,7 @@ class PerformancePage(QWidget):
             "the Virtual Lab step() method executes synchronously without spawning actual OS threads. "
             "This pedagogical abstraction enables students and engineers to isolate algorithm logic from hardware noise."
         )
-        e_desc.setStyleSheet("color: #8b949e; line-height: 1.5; font-size: 12px;")
+        e_desc.setStyleSheet("color: #AAA4AE; line-height: 1.5; font-size: 12px;")
         e_layout.addWidget(e_desc)
         layout.addWidget(edu_card)
 
@@ -866,7 +866,7 @@ class PerformancePage(QWidget):
         self.hist_details_text.setReadOnly(True)
         self.hist_details_text.setMinimumHeight(180)
         self.hist_details_text.setStyleSheet(
-            "background-color: #0d1117; color: #c9d1d9; font-family: monospace; font-size: 11px;"
+            "background-color: #111113; color: #F2F0F3; border: 1px solid #302B32; border-radius: 4px; font-family: monospace; font-size: 11px;"
         )
         d_layout.addWidget(self.hist_details_text)
         layout.addWidget(det_card)
@@ -899,7 +899,7 @@ class PerformancePage(QWidget):
             "Gene Amdahl's 1967 Law dictates the maximum theoretical speedup achievable by parallelizing a fixed workload: "
             "Speedup(P, N) = 1 / ((1 - P) + P / N), where P is the parallelizable fraction and N is the processor count."
         )
-        c_desc.setStyleSheet("color: #8b949e; line-height: 1.4;")
+        c_desc.setStyleSheet("color: #AAA4AE; line-height: 1.4;")
         c_layout.addWidget(c_desc)
 
         grid = QGridLayout()
@@ -914,7 +914,7 @@ class PerformancePage(QWidget):
         grid.addWidget(self.amdahl_slider_p, 0, 1)
 
         self.amdahl_lbl_p_val = QLabel("85.0% (Serial: 15.0%)")
-        self.amdahl_lbl_p_val.setStyleSheet("font-weight: bold; color: #58a6ff;")
+        self.amdahl_lbl_p_val.setStyleSheet("font-weight: bold; color: #19C99A;")
         grid.addWidget(self.amdahl_lbl_p_val, 0, 2)
 
         # Processor Count Slider
@@ -926,7 +926,7 @@ class PerformancePage(QWidget):
         grid.addWidget(self.amdahl_slider_n, 1, 1)
 
         self.amdahl_lbl_n_val = QLabel("8 Cores")
-        self.amdahl_lbl_n_val.setStyleSheet("font-weight: bold; color: #3fb950;")
+        self.amdahl_lbl_n_val.setStyleSheet("font-weight: bold; color: #42D6A0;")
         grid.addWidget(self.amdahl_lbl_n_val, 1, 2)
 
         c_layout.addLayout(grid)
@@ -1004,7 +1004,7 @@ class PerformancePage(QWidget):
             f"4. Memory Bus & Cache Contention: {limits['memory_bus_and_cache_contention']}"
         )
         l_text = QLabel(bullets)
-        l_text.setStyleSheet("color: #8b949e; line-height: 1.5; font-size: 12px;")
+        l_text.setStyleSheet("color: #AAA4AE; line-height: 1.5; font-size: 12px;")
         l_layout.addWidget(l_text)
         layout.addWidget(limit_card)
 

@@ -210,7 +210,7 @@ class DataParallelismPage(QWidget):
         self.lbl_hw_info = QLabel(
             f"Detected Host: {self.summary.cpu_model} ({self.summary.physical_cores}P / {self.summary.logical_cores}L Cores)"
         )
-        self.lbl_hw_info.setStyleSheet("color: #58a6ff; font-size: 11px; font-weight: 600;")
+        self.lbl_hw_info.setStyleSheet("color: #19C99A; font-size: 11px; font-weight: 600;")
         grid.addWidget(self.lbl_hw_info, 3, 0, 1, 4)
 
         self.check_warmup = QCheckBox("Enable Initial Warm-up Run (stabilizes CPU clock governors)")
@@ -362,15 +362,15 @@ class DataParallelismPage(QWidget):
         o_col.addWidget(self.lbl_overhead_compute)
 
         self.lbl_overhead_collection = QLabel("• Result Dequeue & Collection Residual: -- ms")
-        self.lbl_overhead_collection.setStyleSheet("color: #8b949e; font-size: 11px; font-family: monospace;")
+        self.lbl_overhead_collection.setStyleSheet("color: #AAA4AE; font-size: 11px; font-family: monospace;")
         o_col.addWidget(self.lbl_overhead_collection)
 
         self.lbl_overhead_merge = QLabel("• Output Reassembly & Merge: -- ms")
-        self.lbl_overhead_merge.setStyleSheet("color: #8b949e; font-size: 11px; font-family: monospace;")
+        self.lbl_overhead_merge.setStyleSheet("color: #AAA4AE; font-size: 11px; font-family: monospace;")
         o_col.addWidget(self.lbl_overhead_merge)
 
         self.lbl_overhead_ipc_total = QLabel("• Estimated Distribution and Collection Overhead: -- ms")
-        self.lbl_overhead_ipc_total.setStyleSheet("color: #58a6ff; font-size: 11px; font-family: monospace; font-weight: 600;")
+        self.lbl_overhead_ipc_total.setStyleSheet("color: #E4AD69; font-size: 11px; font-family: monospace; font-weight: 600;")
         o_col.addWidget(self.lbl_overhead_ipc_total)
 
         layout.addLayout(o_col, stretch=2)

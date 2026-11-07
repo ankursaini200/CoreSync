@@ -87,7 +87,7 @@ class RealStressPage(QWidget):
             "Spawn actual CPU-bound worker processes to observe true multicore load and thermal scaling. "
             "Includes conservative safety caps, duty-cycle throttling, and instantaneous process termination."
         )
-        desc.setStyleSheet("color: #8b949e;")
+        desc.setStyleSheet("color: #AAA4AE;")
         left_col.addWidget(desc)
         layout.addLayout(left_col)
         layout.addStretch(1)
@@ -138,7 +138,7 @@ class RealStressPage(QWidget):
         grid.addWidget(self.slider_intensity, 1, 1)
 
         self.lbl_intensity = QLabel("100%")
-        self.lbl_intensity.setStyleSheet("font-weight: 600; color: #58a6ff;")
+        self.lbl_intensity.setStyleSheet("font-weight: 600; color: #19C99A;")
         grid.addWidget(self.lbl_intensity, 1, 2)
 
         layout.addLayout(grid)
