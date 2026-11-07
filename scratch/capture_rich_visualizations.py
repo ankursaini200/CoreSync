@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QWidget
 from gui.main_window import MainWindow
 
 from monitoring.cpu_monitor import CPUMetricsSnapshot
@@ -398,8 +398,12 @@ def populate_comparison(page):
 def main():
     app = QApplication.instance() or QApplication(sys.argv)
 
+    import shutil
+
+    # 1. Primary Target: 2560 x 1440 (2K QHD)
+    print("\n--- 1. Capturing at Primary Display Target: 2560 x 1440 (2K QHD) ---")
     window = MainWindow(start_monitor=False)
-    window.resize(1440, 960)
+    window.resize(2560, 1440)
     window.show()
     app.processEvents()
 
@@ -428,8 +432,6 @@ def main():
         (12, "12_real_vs_virtual_comparison.png", "Real vs Virtual Comparison"),
     ]
 
-    import shutil
-
     for idx, filename, label in pages_to_capture:
         window.navigate_to_page(idx)
         app.processEvents()
@@ -439,14 +441,60 @@ def main():
         dest = SCREENSHOTS_DIR / filename
         pixmap = window.grab()
         pixmap.save(str(dest), "PNG")
-        print(f"[Captured] Page {idx:02d} ({label:28s}) -> {dest} ({dest.stat().st_size:,} bytes)")
+        print(f"[Captured 2K] Page {idx:02d} ({label:28s}) -> {dest} ({dest.stat().st_size:,} bytes)")
 
         # Copy to artifacts directory
         artifact_dest = ARTIFACT_SCREENSHOTS / filename
         shutil.copy2(dest, artifact_dest)
 
+    # Dedicated high-res 2K naming for specific requested artifacts
+    shutil.copy2(SCREENSHOTS_DIR / "00_dashboard.png", SCREENSHOTS_DIR / "00_dashboard_2k_qhd.png")
+    shutil.copy2(SCREENSHOTS_DIR / "08_task_parallelism.png", SCREENSHOTS_DIR / "08_task_parallelism_2k_qhd.png")
+    shutil.copy2(SCREENSHOTS_DIR / "09_performance_analytics.png", SCREENSHOTS_DIR / "09_performance_analytics_2k_qhd.png")
+    shutil.copy2(SCREENSHOTS_DIR / "12_real_vs_virtual_comparison.png", SCREENSHOTS_DIR / "12_real_vs_virtual_comparison_2k_qhd.png")
+
+    shutil.copy2(SCREENSHOTS_DIR / "00_dashboard_2k_qhd.png", ARTIFACT_SCREENSHOTS / "00_dashboard_2k_qhd.png")
+    shutil.copy2(SCREENSHOTS_DIR / "08_task_parallelism_2k_qhd.png", ARTIFACT_SCREENSHOTS / "08_task_parallelism_2k_qhd.png")
+    shutil.copy2(SCREENSHOTS_DIR / "09_performance_analytics_2k_qhd.png", ARTIFACT_SCREENSHOTS / "09_performance_analytics_2k_qhd.png")
+    shutil.copy2(SCREENSHOTS_DIR / "12_real_vs_virtual_comparison_2k_qhd.png", ARTIFACT_SCREENSHOTS / "12_real_vs_virtual_comparison_2k_qhd.png")
+
+    # Capture isolated sidebar widget
+    sidebar_widget = window.findChild(QWidget, "sidebar")
+    if sidebar_widget:
+        sb_dest = SCREENSHOTS_DIR / "sidebar_2k_qhd.png"
+        sb_pixmap = sidebar_widget.grab()
+        sb_pixmap.save(str(sb_dest), "PNG")
+        shutil.copy2(sb_dest, ARTIFACT_SCREENSHOTS / "sidebar_2k_qhd.png")
+        print(f"[Captured 2K] Sidebar Widget -> {sb_dest} ({sb_dest.stat().st_size:,} bytes)")
+
+    # 2. Secondary Display Target: 1920 x 1080 (Full HD)
+    print("\n--- 2. Capturing Secondary Display Target: 1920 x 1080 (Full HD) ---")
+    window.resize(1920, 1080)
+    window.navigate_to_page(0)
+    app.processEvents()
+    time.sleep(0.08)
+    app.processEvents()
+
+    dest_1080 = SCREENSHOTS_DIR / "dashboard_1080p_secondary.png"
+    window.grab().save(str(dest_1080), "PNG")
+    shutil.copy2(dest_1080, ARTIFACT_SCREENSHOTS / "dashboard_1080p_secondary.png")
+    print(f"[Captured 1080p] Dashboard -> {dest_1080} ({dest_1080.stat().st_size:,} bytes)")
+
+    # 3. Secondary Display Target: 1366 x 768 (Compact Laptop)
+    print("\n--- 3. Capturing Secondary Display Target: 1366 x 768 (Compact Laptop) ---")
+    window.resize(1366, 768)
+    window.navigate_to_page(0)
+    app.processEvents()
+    time.sleep(0.08)
+    app.processEvents()
+
+    dest_768 = SCREENSHOTS_DIR / "dashboard_768p_secondary.png"
+    window.grab().save(str(dest_768), "PNG")
+    shutil.copy2(dest_768, ARTIFACT_SCREENSHOTS / "dashboard_768p_secondary.png")
+    print(f"[Captured 768p] Dashboard -> {dest_768} ({dest_768.stat().st_size:,} bytes)")
+
     window.close()
-    print("\n✓ All 13 rich visualization screenshots captured and saved to docs/screenshots/ & artifacts!")
+    print("\n✓ All primary 2K QHD (2560x1440) and secondary resolution screenshots captured successfully!")
     os._exit(0)
 
 

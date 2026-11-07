@@ -14,6 +14,11 @@ from gui.components.gantt_canvas import GanttCanvasWidget
 from gui.components.header_bar import HeaderBar
 from gui.components.metric_card import MetricCard
 from gui.components.pipeline_visualizer import DataPipelineVisualizerWidget
+from gui.components.sidebar_nav import (
+    SidebarBrandWidget,
+    SidebarNavButton,
+    WorkstationStatusWidget,
+)
 from gui.components.sparkline_chart import RealtimeAreaChartWidget
 from gui.components.task_gantt import GanttTaskItem, TaskExecutionGanttWidget
 
@@ -33,4 +38,7 @@ __all__ = [
     "AmdahlCurveWidget",
     "ScalabilityChartWidget",
     "TimingBreakdownWidget",
+    "SidebarNavButton",
+    "SidebarBrandWidget",
+    "WorkstationStatusWidget",
 ]

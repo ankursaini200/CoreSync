@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QStatusBar,
     QVBoxLayout,
@@ -23,6 +24,11 @@ from utils.system_info import get_system_summary
 from monitoring.cpu_monitor import CPUMetricsSnapshot, CPUMonitorService
 from gui.styles import DARK_STYLESHEET
 from gui.components.header_bar import HeaderBar
+from gui.components.sidebar_nav import (
+    SidebarBrandWidget,
+    SidebarNavButton,
+    WorkstationStatusWidget,
+)
 from gui.dashboard import DashboardPage
 from gui.core_monitor import CoreMonitorPage
 from gui.real_system.process_view import RealProcessPage
@@ -64,7 +70,19 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.summary = get_system_summary()
         self.setWindowTitle(f"{APP_NAME} - {APP_SUBTITLE} (v{APP_VERSION})")
-        self.resize(1300, 840)
+
+        # Responsive window sizing optimized for 2K QHD (2560x1440)
+        screen = QApplication.primaryScreen()
+        if screen:
+            geom = screen.availableGeometry()
+            if geom.width() >= 2560 and geom.height() >= 1440:
+                self.resize(2560, 1440)
+            elif geom.width() >= 1920:
+                self.resize(1680, 1000)
+            else:
+                self.resize(1366, 768)
+        else:
+            self.resize(1440, 960)
         self.setMinimumSize(1024, 680)
 
         # Apply dark workstation styling
@@ -157,92 +175,95 @@ class MainWindow(QMainWindow):
         sidebar = QWidget(self)
         sidebar.setObjectName("sidebar")
         layout = QVBoxLayout(sidebar)
-        layout.setContentsMargins(8, 14, 8, 14)
-        layout.setSpacing(2)
+        layout.setContentsMargins(6, 8, 6, 12)
+        layout.setSpacing(6)
 
-        # Branding Header
-        brand_label = QLabel(APP_NAME, sidebar)
-        brand_label.setObjectName("appBrand")
-        subtitle_label = QLabel(APP_SUBTITLE, sidebar)
-        subtitle_label.setObjectName("appSubtitle")
-        subtitle_label.setWordWrap(True)
+        # 1. Branding Header
+        self.sidebar_brand = SidebarBrandWidget(sidebar)
+        layout.addWidget(self.sidebar_brand)
 
-        layout.addWidget(brand_label)
-        layout.addWidget(subtitle_label)
+        # 2. Navigation Scroll Area
+        scroll = QScrollArea(sidebar)
+        scroll.setObjectName("sidebarNavScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        nav_container = QWidget()
+        nav_container.setObjectName("sidebarNavContainer")
+        nav_layout = QVBoxLayout(nav_container)
+        nav_layout.setContentsMargins(4, 2, 4, 4)
+        nav_layout.setSpacing(3)
 
         # Navigation Button Group
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
 
-        # Categories & Navigation Items
+        # Categories & Navigation Items (Title, Index, Icon Type, Accent Color)
         categories = [
             ("OVERVIEW", [
-                ("Dashboard", 0),
+                ("Dashboard", 0, "dashboard", "#4776E6"),
             ]),
             ("REAL SYSTEM", [
-                ("Core Monitor", 1),
-                ("Process Monitor", 2),
-                ("Real CPU Stress", 3),
+                ("Core Monitor", 1, "core_monitor", "#36C9E8"),
+                ("Process Monitor", 2, "process_monitor", "#159D91"),
+                ("Real CPU Stress", 3, "real_stress", "#F07178"),
             ]),
             ("CPU SCHEDULING", [
-                ("Process Scheduler", 11),
+                ("Process Scheduler", 11, "process_scheduler", "#D18B42"),
             ]),
             ("VIRTUAL LAB", [
-                ("Virtual CPU Config", 4),
-                ("Virtual Core Monitor", 5),
-                ("Virtual Scheduler", 6),
+                ("Virtual CPU Config", 4, "virtual_config", "#7657D5"),
+                ("Virtual Core Monitor", 5, "virtual_monitor", "#A78BFA"),
+                ("Virtual Scheduler", 6, "virtual_scheduler", "#A78BFA"),
             ]),
             ("PARALLEL PROCESSING", [
-                ("Data Parallelism", 7),
-                ("Task Parallelism", 8),
+                ("Data Parallelism", 7, "data_parallel", "#36C9E8"),
+                ("Task Parallelism", 8, "task_parallel", "#7657D5"),
             ]),
             ("ANALYTICS & COMPARISON", [
-                ("Performance Analytics", 9),
-                ("Real vs Virtual Comparison", 12),
-                ("Settings", 10),
+                ("Performance Analytics", 9, "performance", "#4776E6"),
+                ("Real vs Virtual Comparison", 12, "comparison", "#36C9E8"),
+                ("Settings", 10, "settings", "#96A8C2"),
             ]),
         ]
 
         self.nav_buttons: Dict[int, QPushButton] = {}
 
         for cat_title, items in categories:
-            cat_label = QLabel(cat_title, sidebar)
+            cat_label = QLabel(cat_title, nav_container)
             cat_label.setProperty("class", "nav-category")
-            layout.addWidget(cat_label)
+            nav_layout.addWidget(cat_label)
 
-            for item_title, idx in items:
-                btn = QPushButton(item_title, sidebar)
-                btn.setProperty("class", "nav-button")
-                btn.setCheckable(True)
+            for item_title, idx, icon_type, accent_col in items:
+                btn = SidebarNavButton(
+                    page_index=idx,
+                    title=item_title,
+                    icon_type=icon_type,
+                    accent_color=accent_col,
+                    parent=nav_container,
+                )
                 if idx == 0:
                     btn.setChecked(True)
                 self.nav_group.addButton(btn, idx)
                 self.nav_buttons[idx] = btn
-                layout.addWidget(btn)
+                nav_layout.addWidget(btn)
 
         self.nav_group.idClicked.connect(self.navigate_to_page)
-        layout.addStretch(1)
+        nav_layout.addStretch(1)
 
-        # Sidebar Footer
-        footer_frame = QFrame(sidebar)
-        footer_frame.setProperty("class", "card")
-        footer_layout = QVBoxLayout(footer_frame)
-        footer_layout.setContentsMargins(12, 10, 12, 10)
-        footer_layout.setSpacing(4)
+        scroll.setWidget(nav_container)
+        layout.addWidget(scroll, stretch=1)
 
-        ws_label = QLabel("Workstation Status", footer_frame)
-        ws_label.setStyleSheet("font-weight: 600; font-size: 11px;")
-        footer_layout.addWidget(ws_label)
+        # 3. Anchored Workstation Status Footer
+        self.sidebar_status_widget = WorkstationStatusWidget(
+            physical_cores=self.summary.physical_cores,
+            logical_cores=self.summary.logical_cores,
+            parent=sidebar,
+        )
+        self.sidebar_load_label = self.sidebar_status_widget.sidebar_load_label
+        layout.addWidget(self.sidebar_status_widget)
 
-        self.sidebar_load_label = QLabel("Sampling CPU...", footer_frame)
-        self.sidebar_load_label.setProperty("class", "muted")
-        footer_layout.addWidget(self.sidebar_load_label)
-
-        version_label = QLabel(f"CoreSync v{APP_VERSION}", footer_frame)
-        version_label.setStyleSheet("color: #58a6ff; font-size: 10px; font-weight: 600;")
-        footer_layout.addWidget(version_label)
-
-        layout.addWidget(footer_frame)
         return sidebar
 
     def _init_monitoring_service(self) -> None:
@@ -257,7 +278,10 @@ class MainWindow(QMainWindow):
     @Slot(CPUMetricsSnapshot)
     def _on_metrics_updated(self, snapshot: CPUMetricsSnapshot) -> None:
         """Handle metrics in main window status displays."""
-        self.sidebar_load_label.setText(f"System Load: {snapshot.overall_percent:.1f}%")
+        if hasattr(self, "sidebar_status_widget"):
+            self.sidebar_status_widget.update_load(snapshot.overall_percent)
+        else:
+            self.sidebar_load_label.setText(f"System Load: {snapshot.overall_percent:.1f}%")
 
     @Slot(int)
     def navigate_to_page(self, index: int) -> None:

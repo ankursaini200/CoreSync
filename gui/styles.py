@@ -3,6 +3,8 @@
 from utils.config import (
     COLOR_BG_DARK,
     COLOR_BG_SIDEBAR,
+    COLOR_SURFACE_SECONDARY,
+    COLOR_SURFACE_ELEVATED,
     COLOR_BG_CARD,
     COLOR_BG_CARD_ALT,
     COLOR_BG_HOVER,
@@ -11,6 +13,7 @@ from utils.config import (
     COLOR_ACCENT,
     COLOR_ACCENT_HOVER,
     COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
     COLOR_TEXT_MUTED,
     COLOR_SUCCESS,
     COLOR_WARNING,
@@ -81,8 +84,8 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 #topHeaderBar {{
     background-color: {COLOR_BG_SIDEBAR};
     border-bottom: 1px solid {COLOR_BORDER};
-    min-height: 50px;
-    max-height: 50px;
+    min-height: 54px;
+    max-height: 54px;
 }}
 
 #pageTitle {{
@@ -96,12 +99,47 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
     color: {COLOR_TEXT_MUTED};
 }}
 
+QLabel.tag-pill {{
+    background-color: {COLOR_SURFACE_SECONDARY};
+    border: 1px solid {COLOR_BORDER};
+    border-radius: 12px;
+    padding: 4px 12px;
+    color: {COLOR_TEXT_SECONDARY};
+    font-size: 11px;
+    font-weight: 600;
+}}
+
 /* Sidebar Navigation */
 #sidebar {{
     background-color: {COLOR_BG_SIDEBAR};
     border-right: 1px solid {COLOR_BORDER};
-    min-width: 230px;
-    max-width: 250px;
+    min-width: 260px;
+    max-width: 280px;
+}}
+
+#sidebarNavScroll {{
+    background: transparent;
+    border: none;
+}}
+
+#sidebarNavScroll QWidget {{
+    background: transparent;
+}}
+
+#sidebarNavScroll QScrollBar:vertical {{
+    background: transparent;
+    width: 4px;
+    margin: 0px;
+}}
+
+#sidebarNavScroll QScrollBar::handle:vertical {{
+    background: {COLOR_BORDER};
+    min-height: 24px;
+    border-radius: 2px;
+}}
+
+#sidebarNavScroll QScrollBar::handle:vertical:hover {{
+    background: {COLOR_BORDER_LIGHT};
 }}
 
 #appBrand {{
@@ -124,8 +162,19 @@ QLabel.nav-category {{
     font-weight: 700;
     color: {COLOR_TEXT_MUTED};
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 1.2px;
     padding: 12px 14px 4px 14px;
+}}
+
+/* Workstation Status Card */
+#sidebarStatusCard {{
+    background-color: {COLOR_SURFACE_SECONDARY};
+    border: 1px solid {COLOR_BORDER};
+    border-radius: 8px;
+}}
+
+#sidebarStatusCard:hover {{
+    border: 1px solid {COLOR_BORDER_LIGHT};
 }}
 
 QPushButton.nav-button {{
